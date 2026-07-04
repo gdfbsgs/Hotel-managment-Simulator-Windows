@@ -1,0 +1,17 @@
+import { initializeApp } from "firebase/app";
+import { getAuth, GoogleAuthProvider } from "firebase/auth";
+import { getFirestore } from "firebase/firestore";
+
+const firebaseConfig = {
+  projectId: "unique-segment-pxhgq",
+  appId: "1:552677412783:web:51bd0bf20be1919c90295a",
+  apiKey: "AIzaSyAvW4BbH1JeX4DlPgGlbVw265GvccWCucw",
+  authDomain: "unique-segment-pxhgq.firebaseapp.com",
+  storageBucket: "unique-segment-pxhgq.firebasestorage.app",
+  messagingSenderId: "552677412783"
+};
+
+const app = initializeApp(firebaseConfig);
+export const auth = getAuth(app);
+export const db = getFirestore(app, "ai-studio-4ca3692b-11e8-47a0-99ca-68f485c5112a");
+export const googleProvider = new GoogleAuthProvider();

@@ -1,0 +1,6 @@
+{
+  "name": "ArchHotel 3D Tycoon",
+  "description": "Design, build, and manage your custom luxury hotel empire in full 3D. Configure room categories, staff rosters, VIP loyalty clubs, and walk through your resort in immersive first-person mode!",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
