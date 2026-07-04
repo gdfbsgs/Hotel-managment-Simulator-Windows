@@ -1036,6 +1036,17 @@ export const Management: React.FC = () => {
                     <p className="text-xs text-slate-500 mt-0.5">25 floors with 500 premium rooms in a luxury tower.</p>
                   </div>
                 </button>
+
+                <button 
+                  onClick={() => { loadPreset('spa-tower'); }}
+                  className="flex items-center gap-4 p-4 border border-slate-800 rounded-xl hover:border-emerald-500/50 hover:bg-emerald-500/5 transition-all text-left bg-slate-950/40"
+                >
+                  <div className="p-3 bg-emerald-500/10 text-emerald-400 rounded-lg"><Sparkles size={24} /></div>
+                  <div>
+                    <h4 className="font-bold text-white text-sm">Spa Tower</h4>
+                    <p className="text-xs text-slate-500 mt-0.5">70 floors with 10 fully equipped rooms per floor plus spa, gym, and grand reception.</p>
+                  </div>
+                </button>
               </div>
             </div>
           </div>

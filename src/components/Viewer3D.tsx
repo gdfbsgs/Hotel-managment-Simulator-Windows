@@ -10,6 +10,7 @@ import {
   doorKey,
   getDoorBlockKeys,
   parseDoorKey,
+  findWalkSpawn,
   WALK_OFFSET,
   gridToWorld,
 } from '../walkPhysics';
@@ -124,45 +125,63 @@ const createWallTexture = () => {
   if (!ctx) return new THREE.CanvasTexture(canvas);
 
   const gradient = ctx.createLinearGradient(0, 0, 512, 512);
-  gradient.addColorStop(0, '#172029');
-  gradient.addColorStop(1, '#0f172a');
+  gradient.addColorStop(0, '#cfd6dc');
+  gradient.addColorStop(0.45, '#e7eef4');
+  gradient.addColorStop(1, '#bdc8d1');
   ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 512, 512);
 
-  // Fine concrete grain speckles and vertical brushed lines
-  for (let i = 0; i < 650; i++) {
-    ctx.fillStyle = `rgba(148, 163, 184, ${0.03 + Math.random() * 0.05})`;
-    ctx.fillRect(Math.random() * 512, Math.random() * 512, 1.2, 1.2);
+  // Soft concrete noise base
+  for (let i = 0; i < 1800; i++) {
+    ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.06})`;
+    ctx.fillRect(Math.random() * 512, Math.random() * 512, 1, 1);
   }
-  for (let x = 0; x < 512; x += 12) {
-    ctx.strokeStyle = `rgba(148, 163, 184, ${Math.random() * 0.04})`;
-    ctx.lineWidth = 1;
+
+  // Gentle wall vein accents
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.15)';
+  ctx.lineWidth = 1.2;
+  for (let i = 0; i < 18; i++) {
+    const startX = Math.random() * 512;
+    const startY = Math.random() * 512;
     ctx.beginPath();
-    ctx.moveTo(x + Math.random() * 2 - 1, 0);
-    ctx.lineTo(x + Math.random() * 2 - 1, 512);
+    ctx.moveTo(startX, startY);
+    for (let x = 0; x < 512; x += 16) {
+      ctx.lineTo(startX + x, startY + Math.sin(x * 0.03 + i) * 6 + Math.random() * 8 - 4);
+    }
     ctx.stroke();
   }
 
-  // Subtle panel grooves for premium architectural walls
-  ctx.strokeStyle = 'rgba(148, 163, 184, 0.12)';
-  ctx.lineWidth = 4;
-  for (let y = 64; y < 512; y += 128) {
+  // Panel seams and structure lines
+  ctx.strokeStyle = 'rgba(100, 116, 139, 0.22)';
+  ctx.lineWidth = 2;
+  for (let y = 32; y < 512; y += 128) {
     ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(512, y);
+    ctx.moveTo(0, y + (Math.random() * 6 - 3));
+    ctx.lineTo(512, y + (Math.random() * 6 - 3));
     ctx.stroke();
   }
-  for (let x = 64; x < 512; x += 128) {
+  for (let x = 32; x < 512; x += 128) {
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, 512);
+    ctx.moveTo(x + (Math.random() * 6 - 3), 0);
+    ctx.lineTo(x + (Math.random() * 6 - 3), 512);
+    ctx.stroke();
+  }
+
+  // Light highlights for extra depth
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1;
+  for (let y = 48; y < 512; y += 64) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(512, y + 1);
     ctx.stroke();
   }
 
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(1, 1);
+  texture.repeat.set(2, 2);
+  texture.anisotropy = 8;
   return texture;
 };
 
@@ -173,30 +192,47 @@ const createFabricTexture = (color = '#ffffff') => {
   const ctx = canvas.getContext('2d');
   if (!ctx) return new THREE.CanvasTexture(canvas);
   
-  ctx.fillStyle = color;
+  const gradient = ctx.createLinearGradient(0, 0, 128, 128);
+  gradient.addColorStop(0, color);
+  gradient.addColorStop(1, '#f8fafc');
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 128, 128);
   
-  ctx.strokeStyle = '#ffffff';
-  ctx.globalAlpha = 0.16;
+  ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+  ctx.globalAlpha = 0.18;
   ctx.lineWidth = 1;
   // Cross-hatch vertical fabric weaving lines
   for (let x = 0; x < 128; x += 4) {
     ctx.beginPath();
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, 128);
+    ctx.moveTo(x + (Math.random() * 0.8 - 0.4), 0);
+    ctx.lineTo(x + (Math.random() * 0.8 - 0.4), 128);
     ctx.stroke();
   }
   // Cross-hatch horizontal fabric weaving lines
   for (let y = 0; y < 128; y += 4) {
     ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(128, y);
+    ctx.moveTo(0, y + (Math.random() * 0.8 - 0.4));
+    ctx.lineTo(128, y + (Math.random() * 0.8 - 0.4));
     ctx.stroke();
+  }
+  
+  // Soft cloud shadow texture for depth
+  ctx.globalAlpha = 0.08;
+  for (let i = 0; i < 12; i++) {
+    const x = Math.random() * 128;
+    const y = Math.random() * 128;
+    const r = 14 + Math.random() * 10;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
   }
   
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2, 2);
+  texture.anisotropy = 8;
   return texture;
 };
 
@@ -207,25 +243,43 @@ const createBathroomTexture = () => {
   const ctx = canvas.getContext('2d');
   if (!ctx) return new THREE.CanvasTexture(canvas);
   
-  // Luxury aquamarine-cyan glassy tiles
-  ctx.fillStyle = '#06b6d4';
+  const gradient = ctx.createLinearGradient(0, 0, 256, 256);
+  gradient.addColorStop(0, '#cffafe');
+  gradient.addColorStop(1, '#bae6fd');
+  ctx.fillStyle = gradient;
   ctx.fillRect(0, 0, 256, 256);
-  
-  // Elegant grout lines
-  ctx.strokeStyle = '#ecfeff';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  for (let i = 0; i <= 256; i += 32) {
-    ctx.moveTo(i, 0);
-    ctx.lineTo(i, 256);
-    ctx.moveTo(0, i);
-    ctx.lineTo(256, i);
+
+  // Glass tile grid
+  ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+  ctx.lineWidth = 2;
+  for (let i = 0; i <= 256; i += 28) {
+    ctx.beginPath();
+    ctx.moveTo(i + 1, 0);
+    ctx.lineTo(i + 1, 256);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(0, i + 1);
+    ctx.lineTo(256, i + 1);
+    ctx.stroke();
   }
-  ctx.stroke();
-  
+
+  // Subtle reflection shimmer
+  ctx.globalAlpha = 0.08;
+  for (let i = 0; i < 18; i++) {
+    const x = Math.random() * 256;
+    const y = Math.random() * 256;
+    const r = 16 + Math.random() * 12;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fillStyle = '#ffffff';
+    ctx.fill();
+  }
+
   const texture = new THREE.CanvasTexture(canvas);
   texture.wrapS = THREE.RepeatWrapping;
   texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(2, 2);
+  texture.anisotropy = 8;
   return texture;
 };
 
@@ -267,6 +321,15 @@ const getBathroomTexture = () => {
   return cachedBathroom;
 };
 
+const cloneTexture = (texture: THREE.Texture, repeatX = 1, repeatY = 1) => {
+  const clone = texture.clone();
+  clone.repeat.set(repeatX, repeatY);
+  clone.wrapS = THREE.RepeatWrapping;
+  clone.wrapT = THREE.RepeatWrapping;
+  clone.needsUpdate = true;
+  return clone;
+};
+
 interface FpsControlsProps {
   joystickRef: React.RefObject<{ x: number; y: number }>;
   openDoorsRef: React.MutableRefObject<Set<string>>;
@@ -275,6 +338,8 @@ interface FpsControlsProps {
   onInteract: () => void;
   interactSignalRef: React.MutableRefObject<number>;
   floorTransitionRef: React.MutableRefObject<{ active: boolean; fromY: number; targetY: number; progress: number }>;
+  mode: string;
+  setActiveFloor: (next: number) => void;
 }
 
 const FpsControls: React.FC<FpsControlsProps> = ({
@@ -285,6 +350,8 @@ const FpsControls: React.FC<FpsControlsProps> = ({
   onInteract,
   interactSignalRef,
   floorTransitionRef,
+  mode,
+  setActiveFloor,
 }) => {
   const { camera } = useThree();
   const { activeFloorIndex, floors } = useHotelStore();
@@ -300,14 +367,17 @@ const FpsControls: React.FC<FpsControlsProps> = ({
   const prevInteractSignal = useRef(0);
 
   useEffect(() => {
-    const spawn = gridToWorld(10, 12);
-    const eyeHeight = activeFloorIndex * WALL_HEIGHT + 1.7;
+    const targetFloorIndex = activeFloorIndex;
+    const activeFloor = floors[targetFloorIndex];
+    const spawnTile = activeFloor ? findWalkSpawn(activeFloor.grid) : null;
+    const spawn = spawnTile ? gridToWorld(spawnTile.gx, spawnTile.gy) : gridToWorld(10, 12);
+    const eyeHeight = targetFloorIndex * WALL_HEIGHT + 1.7;
     camera.position.set(spawn.x, eyeHeight, spawn.z);
     yaw.current = 0;
     pitch.current = -0.05;
     camera.rotation.order = 'YXZ';
     camera.rotation.set(pitch.current, yaw.current, 0);
-  }, [camera]);
+  }, [camera, activeFloorIndex, floors, mode]);
 
   useEffect(() => {
     if (floorTransitionRef.current.active) return;
@@ -535,22 +605,16 @@ const MergedBed = ({ x, y, w, h, grid }: { x: number, y: number, w: number, h: n
     if (x + w < grid[0].length && grid[y+i][x+w] === 'wall') touchesRight = true;
   }
 
-  let pillowPos: [number, number, number] = [0, 0.75, -h * TILE_SIZE * 0.45 + 0.4];
-  let pillowArgs: [number, number, number] = [w * TILE_SIZE * 0.6, 0.1, 0.4];
+  const frameWidth = w * TILE_SIZE;
+  const frameDepth = h * TILE_SIZE;
+  const mattressWidth = frameWidth * 0.9;
+  const mattressDepth = frameDepth * 0.9;
+  const headboardHeight = 0.75;
+  const pillowCount = w > 1 ? 2 : 1;
+  const pillowSpacing = mattressWidth * 0.4;
 
-  if (touchesLeft && !touchesTop && !touchesBottom) {
-    pillowPos = [-w * TILE_SIZE * 0.45 + 0.4, 0.75, 0];
-    pillowArgs = [0.4, 0.1, h * TILE_SIZE * 0.6];
-  } else if (touchesRight && !touchesTop && !touchesBottom) {
-    pillowPos = [w * TILE_SIZE * 0.45 - 0.4, 0.75, 0];
-    pillowArgs = [0.4, 0.1, h * TILE_SIZE * 0.6];
-  } else if (touchesBottom && !touchesTop) {
-    pillowPos = [0, 0.75, h * TILE_SIZE * 0.45 - 0.4];
-    pillowArgs = [w * TILE_SIZE * 0.6, 0.1, 0.4];
-  }
-
-  const centerX = x * TILE_SIZE + (w * TILE_SIZE) / 2;
-  const centerZ = y * TILE_SIZE + (h * TILE_SIZE) / 2;
+  const centerX = x * TILE_SIZE + frameWidth / 2;
+  const centerZ = y * TILE_SIZE + frameDepth / 2;
 
   const fabricSheets = getFabricSheetsTexture();
   const fabricBlanket = getFabricBlanketTexture();
@@ -559,20 +623,65 @@ const MergedBed = ({ x, y, w, h, grid }: { x: number, y: number, w: number, h: n
     <group position={[centerX, 0, centerZ]}>
       {/* Wood Base Bed Frame */}
       <mesh position={[0, FLOOR_HEIGHT / 2, 0]}>
-         <boxGeometry args={[w * TILE_SIZE, FLOOR_HEIGHT, h * TILE_SIZE]} />
-         <meshStandardMaterial map={getWoodTexture()} roughness={0.7} />
+         <boxGeometry args={[frameWidth, FLOOR_HEIGHT, frameDepth]} />
+         <meshStandardMaterial map={getWoodTexture()} roughness={0.68} />
       </mesh>
-      {/* Cozy Mattress with Crimson Blanket */}
-      <mesh position={[0, 0.4, 0]}>
-        <boxGeometry args={[w * TILE_SIZE * 0.85, 0.6, h * TILE_SIZE * 0.85]} />
-        <meshStandardMaterial map={fabricBlanket} roughness={0.9} />
+      {/* Mattress */}
+      <mesh position={[0, 0.38, 0]}>
+        <boxGeometry args={[mattressWidth, 0.42, mattressDepth]} />
+        <meshStandardMaterial color="#f8fafc" roughness={0.9} />
       </mesh>
-      {/* White Pillow sheets */}
-      <mesh position={pillowPos}>
-        <boxGeometry args={pillowArgs} />
-        <meshStandardMaterial map={fabricSheets} roughness={0.95} />
+      {/* Blanket */}
+      <mesh position={[0, 0.55, 0]}>
+        <boxGeometry args={[mattressWidth * 0.96, 0.2, mattressDepth * 0.96]} />
+        <meshStandardMaterial map={fabricBlanket} roughness={0.92} metalness={0.05} />
       </mesh>
+      {/* Headboard */}
+      <mesh position={[0, 1.02, -(frameDepth / 2 - 0.08)]}>
+        <boxGeometry args={[frameWidth * 0.95, headboardHeight, 0.14]} />
+        <meshStandardMaterial color="#475569" roughness={0.35} metalness={0.05} />
+      </mesh>
+      {/* Pillows */}
+      {[...Array(pillowCount)].map((_, i) => (
+        <mesh
+          key={i}
+          position={[
+            (i - (pillowCount - 1) / 2) * pillowSpacing,
+            0.8,
+            -(mattressDepth * 0.35),
+          ]}
+        >
+          <boxGeometry args={[0.7, 0.14, 0.32]} />
+          <meshStandardMaterial color="#ffffff" roughness={0.92} />
+        </mesh>
+      ))}
     </group>
+  );
+};
+
+const MergedFloor = ({ x, y, w, h }: { x: number, y: number, w: number, h: number }) => {
+  const centerX = x * TILE_SIZE + (w * TILE_SIZE) / 2;
+  const centerZ = y * TILE_SIZE + (h * TILE_SIZE) / 2;
+  const texture = cloneTexture(getTerrazzoTexture(), w, h);
+
+  return (
+    <mesh position={[centerX, FLOOR_HEIGHT / 2, centerZ]}>
+      <boxGeometry args={[w * TILE_SIZE, FLOOR_HEIGHT, h * TILE_SIZE]} />
+      <meshStandardMaterial map={texture} roughness={0.4} />
+    </mesh>
+  );
+};
+
+const MergedWall = ({ x, y, w, h }: { x: number, y: number, w: number, h: number }) => {
+  const centerX = x * TILE_SIZE + (w * TILE_SIZE) / 2;
+  const centerZ = y * TILE_SIZE + (h * TILE_SIZE) / 2;
+  const texture = cloneTexture(getWallTexture(), Math.max(w, h) * 1.25, 2);
+
+  return (
+    <mesh position={[centerX, WALL_HEIGHT / 2, centerZ]}>
+      <boxGeometry args={[w * TILE_SIZE, WALL_HEIGHT, h * TILE_SIZE]} />
+      <meshStandardMaterial map={texture} roughness={0.58} metalness={0.03} />
+    </mesh>
   );
 };
 
@@ -966,8 +1075,13 @@ const TileModel = ({ type, position }: { type: TileType; position: [number, numb
       return (
         <mesh position={[px, py + WALL_HEIGHT / 2, pz]}>
           <boxGeometry args={[TILE_SIZE, WALL_HEIGHT, TILE_SIZE]} />
-          {/* Apply Slate Concrete paneled walls */}
-          <meshStandardMaterial map={getWallTexture()} roughness={0.5} />
+          {/* Apply premium architectural wall finish */}
+          <meshStandardMaterial
+            color="#dbe3ea"
+            map={getWallTexture()}
+            roughness={0.58}
+            metalness={0.03}
+          />
         </mesh>
       );
     case 'plant':
@@ -1061,6 +1175,32 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
 
   const offsetX = WALK_OFFSET;
   const offsetZ = WALK_OFFSET;
+
+  const visibleFloors = useMemo(() => {
+    if (mode === 'Walk') {
+      const activeFloor = floors[activeFloorIndex];
+      return activeFloor ? [activeFloor] : [];
+    }
+    return floors;
+  }, [mode, floors, activeFloorIndex]);
+
+  const visibleFloorBlocks = useMemo(
+    () =>
+      visibleFloors.map((floor) => ({
+        floor,
+        floorBlocks: getMergedBlocks(floor.grid, 'floor'),
+        wallBlocks: getMergedBlocks(floor.grid, 'wall'),
+        bedBlocks: getMergedBlocks(floor.grid, 'bed'),
+        tableBlocks: getMergedBlocks(floor.grid, 'table'),
+        receptionBlocks: getMergedBlocks(floor.grid, 'reception'),
+        windowBlocks: getMergedBlocks(floor.grid, 'window'),
+        doorBlocks: getMergedBlocks(floor.grid, 'door'),
+        elevatorBlocks: getMergedBlocks(floor.grid, 'elevator'),
+        bathroomBlocks: getMergedBlocks(floor.grid, 'bathroom'),
+        staffBlocks: getMergedBlocks(floor.grid, 'staff'),
+      })),
+    [visibleFloors]
+  );
 
   const openDoorsRef = useRef<Set<string>>(new Set());
   const elevatorDoorsRef = useRef<Set<string>>(new Set());
@@ -1226,7 +1366,7 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
   }, [joystickActive]);
 
   // Types that are merged visually
-  const mergedTypes = ['bed', 'table', 'reception', 'window', 'door', 'elevator', 'bathroom', 'staff'];
+  const mergedTypes = ['floor', 'wall', 'bed', 'table', 'reception', 'window', 'door', 'elevator', 'bathroom', 'staff'];
 
   return (
     <div className={`flex-1 bg-slate-950 w-full h-full relative overflow-hidden select-none touch-none`}>
@@ -1338,6 +1478,8 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
             onInteract={handleInteract}
             interactSignalRef={interactSignalRef}
             floorTransitionRef={floorTransitionRef}
+            mode={mode}
+            setActiveFloor={setActiveFloor}
           />
         ) : (
           <OrbitControls 
@@ -1360,100 +1502,92 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
         </mesh>
 
         <group position={[-offsetX, 0, -offsetZ]}>
-          {floors.map((floor) => {
-            const bedBlocks = getMergedBlocks(floor.grid, 'bed');
-            const tableBlocks = getMergedBlocks(floor.grid, 'table');
-            const receptionBlocks = getMergedBlocks(floor.grid, 'reception');
-            const windowBlocks = getMergedBlocks(floor.grid, 'window');
-            const doorBlocks = getMergedBlocks(floor.grid, 'door');
-            const elevatorBlocks = getMergedBlocks(floor.grid, 'elevator');
-            const bathroomBlocks = getMergedBlocks(floor.grid, 'bathroom');
-            const staffBlocks = getMergedBlocks(floor.grid, 'staff');
-
-            return (
-              <group key={floor.level} position={[0, floor.level * WALL_HEIGHT, 0]}>
-                {floor.grid.map((row, y) => (
-                  row.map((cell, x) => {
-                    if (mergedTypes.includes(cell)) return null;
-                    return (
-                      <TileModel 
-                        key={`${floor.level}-${x}-${y}`} 
-                        type={cell} 
-                        position={[x * TILE_SIZE + TILE_SIZE / 2, 0, y * TILE_SIZE + TILE_SIZE / 2]} 
-                      />
-                    );
-                  })
-                ))}
-                
-                {/* Render merged blocks */}
-                {bedBlocks.map((b, i) => <MergedBed key={`bed-${i}`} {...b} grid={floor.grid} />)}
-                {tableBlocks.map((b, i) => <MergedTable key={`table-${i}`} {...b} />)}
-                {receptionBlocks.map((b, i) => <MergedReception key={`rec-${i}`} {...b} />)}
-                {windowBlocks.map((b, i) => <MergedWindow key={`win-${i}`} {...b} grid={floor.grid} />)}
-                {doorBlocks.map((b, i) => {
-                  const blockKeys = getDoorBlockKeys(floor.grid, b.x, b.y, floor.level);
-                  const isOpen = blockKeys.some((key) => openDoors.has(key));
+          {visibleFloorBlocks.map(({ floor, floorBlocks, wallBlocks, bedBlocks, tableBlocks, receptionBlocks, windowBlocks, doorBlocks, elevatorBlocks, bathroomBlocks, staffBlocks }) => (
+            <group key={floor.level} position={[0, floor.level * WALL_HEIGHT, 0]}>
+              {floor.grid.map((row, y) => (
+                row.map((cell, x) => {
+                  if (mergedTypes.includes(cell)) return null;
+                  if (mode === 'Walk' && cell === 'window') return null;
                   return (
-                    <MergedDoor
-                      key={`door-${i}`}
-                      {...b}
-                      grid={floor.grid}
-                      floorLevel={floor.level}
-                      isOpen={isOpen}
+                    <TileModel
+                      key={`${floor.level}-${x}-${y}`}
+                      type={cell}
+                      position={[x * TILE_SIZE + TILE_SIZE / 2, 0, y * TILE_SIZE + TILE_SIZE / 2]}
                     />
                   );
-                })}
-                {elevatorBlocks.map((b, i) => {
-                  const key = doorKey(floor.level, b.x, b.y);
-                  return (
-                    <MergedElevator
-                      key={`ele-${i}`}
-                      {...b}
-                      floorLevel={floor.level}
-                      doorsOpen={elevatorDoorsOpen.has(key) || showElevatorPanel}
-                    />
-                  );
-                })}
-                {bathroomBlocks.map((b, i) => <MergedBathroom key={`bath-${i}`} {...b} />)}
-                {staffBlocks.map((b, i) => <MergedStaff key={`staff-${i}`} {...b} />)}
-                
-                {/* Render labels */}
-                {floor.labels?.map((label) => (
-                  <Text
-                    key={label.id}
-                    position={[
-                      label.x * TILE_SIZE + TILE_SIZE / 2, 
-                      0.2, 
-                      label.y * TILE_SIZE + TILE_SIZE / 2
-                    ]}
-                    rotation={[-Math.PI / 2, 0, 0]}
-                    fontSize={1.5}
-                    color="#f8fafc"
-                    anchorX="center"
-                    anchorY="middle"
-                    outlineWidth={0.05}
-                    outlineColor="#0f172a"
-                  >
-                    {label.text}
-                  </Text>
-                ))}
+                })
+              ))}
 
-                {/* Render guests for this floor */}
-                {guests.filter((g) => g.floorIndex === floor.level).map((guest) => (
-                  <group
-                    key={guest.id}
-                    position={[
-                      guest.x * TILE_SIZE + TILE_SIZE / 2,
-                      0,
-                      guest.y * TILE_SIZE + TILE_SIZE / 2,
-                    ]}
-                  >
-                    <GuestAvatar guest={guest} />
-                  </group>
-                ))}
-              </group>
-            );
-          })}
+              {/* Render merged blocks */}
+              {floorBlocks.map((b, i) => <MergedFloor key={`floor-${i}`} {...b} />)}
+              {wallBlocks.map((b, i) => <MergedWall key={`wall-${i}`} {...b} />)}
+              {bedBlocks.map((b, i) => <MergedBed key={`bed-${i}`} {...b} grid={floor.grid} />)}
+              {tableBlocks.map((b, i) => <MergedTable key={`table-${i}`} {...b} />)}
+              {receptionBlocks.map((b, i) => <MergedReception key={`rec-${i}`} {...b} />)}
+              {windowBlocks.map((b, i) => mode !== 'Walk' && <MergedWindow key={`win-${i}`} {...b} grid={floor.grid} />)}
+              {doorBlocks.map((b, i) => {
+                const blockKeys = getDoorBlockKeys(floor.grid, b.x, b.y, floor.level);
+                const isOpen = blockKeys.some((key) => openDoors.has(key));
+                return (
+                  <MergedDoor
+                    key={`door-${i}`}
+                    {...b}
+                    grid={floor.grid}
+                    floorLevel={floor.level}
+                    isOpen={isOpen}
+                  />
+                );
+              })}
+              {elevatorBlocks.map((b, i) => {
+                const key = doorKey(floor.level, b.x, b.y);
+                return (
+                  <MergedElevator
+                    key={`ele-${i}`}
+                    {...b}
+                    floorLevel={floor.level}
+                    doorsOpen={elevatorDoorsOpen.has(key) || showElevatorPanel}
+                  />
+                );
+              })}
+              {bathroomBlocks.map((b, i) => <MergedBathroom key={`bath-${i}`} {...b} />)}
+              {staffBlocks.map((b, i) => <MergedStaff key={`staff-${i}`} {...b} />)}
+
+              {/* Render labels */}
+              {floor.labels?.map((label) => (
+                <Text
+                  key={label.id}
+                  position={[
+                    label.x * TILE_SIZE + TILE_SIZE / 2,
+                    0.2,
+                    label.y * TILE_SIZE + TILE_SIZE / 2,
+                  ]}
+                  rotation={[-Math.PI / 2, 0, 0]}
+                  fontSize={mode === 'Walk' ? 1.2 : 1.5}
+                  color="#f8fafc"
+                  anchorX="center"
+                  anchorY="middle"
+                  outlineWidth={0.05}
+                  outlineColor="#0f172a"
+                >
+                  {label.text}
+                </Text>
+              ))}
+
+              {/* Render guests for this floor */}
+              {mode !== 'Walk' && guests.filter((g) => g.floorIndex === floor.level).map((guest) => (
+                <group
+                  key={guest.id}
+                  position={[
+                    guest.x * TILE_SIZE + TILE_SIZE / 2,
+                    0,
+                    guest.y * TILE_SIZE + TILE_SIZE / 2,
+                  ]}
+                >
+                  <GuestAvatar guest={guest} />
+                </group>
+              ))}
+            </group>
+          ))}
         </group>
       </Canvas>
     </div>

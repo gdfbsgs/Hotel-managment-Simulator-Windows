@@ -95,6 +95,21 @@ export function isTileBlocking(
   return false;
 }
 
+export function isWalkableTile(tile: TileType | undefined) {
+  return tile === 'floor' || tile === 'door' || tile === 'elevator' || tile === 'stairs';
+}
+
+export function findWalkSpawn(grid: TileType[][]) {
+  for (let gy = 0; gy < grid.length; gy++) {
+    for (let gx = 0; gx < grid[gy].length; gx++) {
+      if (isWalkableTile(grid[gy][gx])) {
+        return { gx, gy };
+      }
+    }
+  }
+  return null;
+}
+
 export function checkPlayerCollision(
   worldX: number,
   worldZ: number,

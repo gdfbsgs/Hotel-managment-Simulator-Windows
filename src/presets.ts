@@ -97,6 +97,76 @@ function createHighRiseFloors(): Floor[] {
   return floors;
 }
 
+function createSpaTowerFloors(): Floor[] {
+  const floors: Floor[] = [];
+
+  floors.push({
+    level: 0,
+    name: 'Grand Spa Lobby',
+    grid: parseGrid([
+      '####################',
+      '#P..RRR....EE....P.#',
+      '#P..RRR....EE....P.#',
+      '#.....TTT......TT..#',
+      '#.....TTT......TT..#',
+      '#..................#',
+      '#...####....####...#',
+      '#...#SPA#..#GYM#...#',
+      '#...#SPA#..#GYM#...#',
+      '#...####....####...#',
+      '#..................#',
+      '#..SSS....P....SSS.#',
+      '#..SSS....P....SSS.#',
+      '#..SSS....P....SSS.#',
+      '#..P...........P...#',
+      '####################',
+      '      EE            ',
+      '      EE            ',
+    ]),
+    labels: [
+      { id: 'spa-1', x: 7, y: 1, text: 'Reception' },
+      { id: 'spa-2', x: 7, y: 7, text: 'Spa' },
+      { id: 'spa-3', x: 14, y: 7, text: 'Gym' },
+      { id: 'spa-4', x: 11, y: 12, text: 'Wellness Lounge' },
+    ]
+  });
+
+  const guestFloorGrid = parseGrid([
+    '####################',
+    '#WBBTTBBW..WBBTTBBW#',
+    '#Wb....bW..Wb....bW#',
+    '#W......D..D......W#',
+    '#WBBTTBBW..WBBTTBBW#',
+    '#Wb....bW..Wb....bW#',
+    '#W......D..D......W#',
+    '#WBBTTBBW..WBBTTBBW#',
+    '#Wb....bW..Wb....bW#',
+    '#W......D..D......W#',
+    '#WBBTTBBW..WBBTTBBW#',
+    '#Wb....bW..Wb....bW#',
+    '#W......D..D......W#',
+    '#WBBTTBBW..WBBTTBBW#',
+    '#Wb....bW..Wb....bW#',
+    '#W......D..D......W#',
+    '####################',
+      '      EE            ',
+      '      EE            ',
+  ]);
+
+  for (let level = 1; level < 70; level++) {
+    floors.push({
+      level,
+      name: `Guest Floor ${level}`,
+      grid: guestFloorGrid,
+      labels: level === 1 ? [
+        { id: 'spa-floor-1', x: 9, y: 1, text: 'Premium Guest Level' },
+      ] : []
+    });
+  }
+
+  return floors;
+}
+
 export const PRESETS: Record<string, Floor[]> = {
   'small-hotel': [
     {
@@ -222,5 +292,6 @@ export const PRESETS: Record<string, Floor[]> = {
     }
   ],
   'high-rise': createHighRiseFloors(),
-  'radisson-blu-olimpiiskii': createHighRiseFloors()
+  'radisson-blu-olimpiiskii': createHighRiseFloors(),
+  'spa-tower': createSpaTowerFloors()
 };

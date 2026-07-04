@@ -66,7 +66,7 @@ export interface GuestNPC {
   finalFloorIndex?: number;
   floorIndex: number;
   isVip?: boolean;
-  vipNeed?: 'champagne' | 'valet' | 'suite' | 'spa' | 'none';
+  vipNeed?: 'champagne' | 'valet' | 'suite' | 'spa' | 'late checkout' | 'none';
   vipSatisfaction?: number; // 0 to 100
   vipAssignedStaff?: string; // Staff ID currently servicing them
   satisfaction?: number; // For standard guests (0-100)

@@ -159,6 +159,19 @@ export const DEFAULT_ROOM_CATEGORIES: RoomCategory[] = [
   }
 ];
 
+const GUEST_NAMES = [
+  'Olivia Chen', 'Liam Carter', 'Emma Nguyen', 'Noah Patel', 'Ava Martinez', 'Ethan Brooks',
+  'Sophia Kim', 'Mason Smith', 'Isabella Lee', 'Lucas Johnson', 'Mia Rivera', 'Jackson Wright',
+  'Harper Clarke', 'Aiden Chen', 'Aria Bennett', 'Sebastian Hall', 'Charlotte Brooks', 'Leo Foster'
+];
+
+const VIP_NAMES = [
+  'Eleanor Vale', 'Julian Archer', 'Amelia Sinclair', 'Theodore Quinn', 'Vivian Hart',
+  'Dominic West', 'Isabella Fontaine', 'Sebastian Gray', 'Arabella Kane', 'Nathaniel Rhodes'
+];
+
+const VIP_NEEDS: GuestNPC['vipNeed'][] = ['champagne', 'valet', 'suite', 'spa', 'late checkout'];
+
 export const DEFAULT_BONUS_PROGRAMS: BonusProgram[] = [
   {
     id: 'bp-silver',
@@ -257,7 +270,7 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
     const activeId = (data.activeHotelId as string) || (data.hotels[0] as HotelData).id;
     const activeHotel = (data.hotels as HotelData[]).find((h) => h.id === activeId) || (data.hotels[0] as HotelData);
     set({
-      chainName: (data.chainName as string) || 'Grand Horizon Hotels',
+      chainName: (data.chainName as string) || 'Marriott & Radisson Hospitality Group',
       hotels: data.hotels as HotelData[],
       activeHotelId: activeId,
       customBrands: (data.customBrands as Brand[]) || [],
@@ -297,7 +310,7 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
       milestones: (data.milestones as Milestone[]) || getInitialMilestones(),
     };
     set({
-      chainName: 'Legacy Hospitality Chain',
+      chainName: 'Marriott & Radisson Hospitality Group',
       hotels: [legacyHotel],
       activeHotelId: 'h-legacy',
       activeHotelBrandId: 'b-budget',
@@ -426,12 +439,12 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   activeMilestoneNotification: null,
   dismissMilestoneNotification: () => set({ activeMilestoneNotification: null }),
 
-  chainName: 'Grand Horizon Hotels',
+  chainName: 'Marriott & Radisson Hospitality Group',
   hotels: [
     {
       id: 'h-1',
-      name: 'Grand Plaza Resort',
-      brandId: 'b-budget',
+      name: 'Marriott Marquis',
+      brandId: 'b-marriott',
       floors: JSON.parse(JSON.stringify(PRESETS['small-hotel'])),
       money: 15000,
       staff: [
@@ -447,11 +460,31 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       milestones: getInitialMilestones(),
       marketId: 'urban-business',
       marketingBudget: 75,
+    },
+    {
+      id: 'h-2',
+      name: 'Radisson Blu Plaza',
+      brandId: 'b-radisson',
+      floors: JSON.parse(JSON.stringify(PRESETS['small-hotel'])),
+      money: 15000,
+      staff: [
+        { id: 's-receptionist-2', name: 'Claire (Receptionist)', role: 'receptionist', salary: 105, currentTask: 'Check-in Guests' },
+        { id: 's-cleaner-2', name: 'Daniel (Cleaner)', role: 'cleaner', salary: 52, currentTask: 'Clean Room' }
+      ],
+      guests: [],
+      roomRates: { standard: 50, suite: 120 },
+      roomCategories: DEFAULT_ROOM_CATEGORIES,
+      bonusPrograms: DEFAULT_BONUS_PROGRAMS,
+      activeBonusProgramId: null,
+      totalGuestsServed: 0,
+      milestones: getInitialMilestones(),
+      marketId: 'urban-business',
+      marketingBudget: 75,
     }
   ],
   activeHotelId: 'h-1',
   customBrands: [],
-  activeHotelBrandId: 'b-budget',
+  activeHotelBrandId: 'b-marriott',
   gameDay: 1,
   gameHour: 8,
   marketId: 'urban-business',
@@ -495,7 +528,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       { id: 's-receptionist-1', name: 'Alice (Receptionist)', role: 'receptionist' as const, salary: 100, currentTask: 'Check-in Guests' as const },
       { id: 's-cleaner-1', name: 'Bob (Cleaner)', role: 'cleaner' as const, salary: 50, currentTask: 'Clean Room' as const }
     ];
-    const brandKey = brandId || 'b-budget';
+    const brandKey = brandId || 'b-marriott';
     
     const newHotel: HotelData = {
       id: newHotelId,
@@ -861,7 +894,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     });
 
     if (newGuests.length < capacity && Math.random() < spawnChance) {
-      // Find reception
+      // Find reception and main entrance
       let receptionX = 10, receptionY = 10, receptionFloor = 0;
       let foundReception = false;
       for (let f = 0; f < state.floors.length; f++) {
@@ -869,30 +902,41 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
           for (let x = 0; x < GRID_SIZE; x++) {
             if (state.floors[f].grid[y][x] === 'reception') {
               receptionX = x; receptionY = y; receptionFloor = f;
-              foundReception = true; break;
+              foundReception = true;
+              break;
             }
           }
           if (foundReception) break;
         }
         if (foundReception) break;
       }
+
+      let entranceX = 10;
+      let entranceY = 19;
+      const lobbyFloor = state.floors[0];
+      if (lobbyFloor) {
+        outerLoop: for (let y = 0; y < GRID_SIZE; y++) {
+          for (let x = 0; x < GRID_SIZE; x++) {
+            const isBoundary = x === 0 || y === 0 || x === GRID_SIZE - 1 || y === GRID_SIZE - 1;
+            if (isBoundary && lobbyFloor.grid[y][x] === 'D') {
+              entranceX = x;
+              entranceY = y;
+              break outerLoop;
+            }
+          }
+        }
+      }
       
       const isVip = Math.random() < activeBrand.vipSpawnRate;
-      let name = `Guest ${Math.floor(Math.random() * 1000)}`;
+      const name = isVip
+        ? `${VIP_NAMES[Math.floor(Math.random() * VIP_NAMES.length)]} 👑`
+        : GUEST_NAMES[Math.floor(Math.random() * GUEST_NAMES.length)];
       let vipNeed: GuestNPC['vipNeed'] = undefined;
       let vipSatisfaction = undefined;
       
       if (isVip) {
-        const vipNames = [
-          'Sir Archibald Sterling', 'Lady Vivienne Rothschild', 'Duke Charles Wellington',
-          'Baroness Beatrice Vance', 'Director Julian Finch', 'Ambassador Evelyn Thorne',
-          'Princess Sophia of Bavaria', 'Lord Harrison Blackwood', 'CEO Jacqueline Thorne',
-          'Count Maximillian Vance'
-        ];
-        name = vipNames[Math.floor(Math.random() * vipNames.length)] + ' 👑';
-        const vipNeedsList: GuestNPC['vipNeed'][] = ['champagne', 'valet', 'suite', 'spa'];
-        vipNeed = vipNeedsList[Math.floor(Math.random() * vipNeedsList.length)];
-        vipSatisfaction = 50; // starts at 50%
+        vipNeed = VIP_NEEDS[Math.floor(Math.random() * VIP_NEEDS.length)];
+        vipSatisfaction = 60; // starts higher for VIPs
       }
       
       newGuests.push({
@@ -901,14 +945,15 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         stayDuration: 0,
         spent: 0,
         state: 'checking-in',
-        x: 10, y: 19, // Spawn at bottom center
+        x: entranceX,
+        y: entranceY,
         floorIndex: 0,
         targetX: receptionX,
         targetY: receptionY,
         isVip,
         vipNeed,
         vipSatisfaction,
-        satisfaction: 75 // Starts at 75% for standard guests
+        satisfaction: isVip ? 80 : 75
       });
     }
 
@@ -936,11 +981,13 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
           let hasPlant = false;
           let hasTable = false;
           let hasReception = false;
+          let hasWindowView = false;
           floorGrid.forEach(row => row.forEach(tile => {
             if (tile === 'bathroom') hasBathroom = true;
             if (tile === 'plant') hasPlant = true;
             if (tile === 'table') hasTable = true;
             if (tile === 'reception') hasReception = true;
+            if (tile === 'W') hasWindowView = true;
           }));
 
           if (g.vipNeed === 'spa' && hasBathroom) {
@@ -999,10 +1046,12 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
           let hasBathroom = false;
           let hasPlant = false;
           let hasTable = false;
+          let hasWindowView = false;
           floorGrid.forEach(row => row.forEach(tile => {
             if (tile === 'bathroom') hasBathroom = true;
             if (tile === 'plant') hasPlant = true;
             if (tile === 'table') hasTable = true;
+            if (tile === 'W') hasWindowView = true;
           }));
 
           if (hasBathroom) {
@@ -1016,14 +1065,17 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
           }
 
           if (hasPlant) {
-            let plantBoost = (activeBrand.id === 'b-eco' ? 0.8 : 0.4);
+            let plantBoost = 0.5;
             if (activeProgram?.privileges.includes('organicVibe') && g.enrolledInBonusProgram) {
-              plantBoost *= 2.0;
+              plantBoost *= 1.8;
             }
             currentSat = Math.min(100, currentSat + plantBoost);
           }
           if (hasTable) {
-            currentSat = Math.min(100, currentSat + (activeBrand.id === 'b-eco' ? 0.8 : 0.4));
+            currentSat = Math.min(100, currentSat + 0.4);
+          }
+          if (hasWindowView) {
+            currentSat = Math.min(100, currentSat + 0.5);
           }
         }
 
@@ -1382,22 +1434,36 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
 
   setTile: (x, y, tool) => set((state) => {
     if ((tool as any) === 'text') return state;
-    
-    let newFloors;
+
+    let newFloors = [...state.floors];
     if (tool === 'elevator') {
-       newFloors = state.floors.map(floor => {
-          const newGrid = [...floor.grid];
-          newGrid[y] = [...newGrid[y]];
+      newFloors = state.floors.map((floor, index) => {
+        const newGrid = [...floor.grid];
+        newGrid[y] = [...newGrid[y]];
+        if (index >= state.activeFloorIndex) {
           newGrid[y][x] = 'elevator';
-          return { ...floor, grid: newGrid };
-       });
+        }
+        return { ...floor, grid: newGrid };
+      });
     } else {
-       newFloors = [...state.floors];
-       const newGrid = [...newFloors[state.activeFloorIndex].grid];
-       newGrid[y] = [...newGrid[y]];
-       newGrid[y][x] = tool === 'eraser' ? 'empty' : tool;
-       newFloors[state.activeFloorIndex] = { ...newFloors[state.activeFloorIndex], grid: newGrid };
+      const newGrid = [...newFloors[state.activeFloorIndex].grid];
+      newGrid[y] = [...newGrid[y]];
+      const prevTile = newGrid[y][x];
+      newGrid[y][x] = tool === 'eraser' ? 'empty' : tool;
+      newFloors[state.activeFloorIndex] = { ...newFloors[state.activeFloorIndex], grid: newGrid };
+
+      if (tool === 'eraser' && prevTile === 'elevator') {
+        for (let index = state.activeFloorIndex + 1; index < newFloors.length; index++) {
+          const floorGrid = [...newFloors[index].grid];
+          floorGrid[y] = [...floorGrid[y]];
+          if (floorGrid[y][x] === 'elevator') {
+            floorGrid[y][x] = 'empty';
+            newFloors[index] = { ...newFloors[index], grid: floorGrid };
+          }
+        }
+      }
     }
+
     const synced = syncActiveHotelHelper({ ...state, floors: newFloors });
     return { floors: newFloors, hotels: synced };
   }),
@@ -1466,8 +1532,8 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     ];
     const defaultHotel: HotelData = {
       id: 'h-1',
-      name: 'Grand Plaza Resort',
-      brandId: 'b-budget',
+      name: 'Marriott Marquis',
+      brandId: 'b-marriott',
       floors: startingFloors,
       money: 15000,
       staff: startingStaff,
@@ -1480,11 +1546,10 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       milestones: getInitialMilestones()
     };
     return { 
-      chainName: 'Grand Horizon Hotels',
+      chainName: 'Marriott & Radisson Hospitality Group',
       hotels: [defaultHotel],
       activeHotelId: 'h-1',
-      activeHotelBrandId: 'b-budget',
-      customBrands: [],
+      activeHotelBrandId: 'b-marriott',
       floors: defaultHotel.floors,
       activeFloorIndex: 0, 
       money: 15000, 

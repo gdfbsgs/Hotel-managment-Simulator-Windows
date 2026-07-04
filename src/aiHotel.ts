@@ -350,25 +350,26 @@ export function normalizeAiFloors(rawFloors: RawAiFloor[]): Floor[] {
 export function enrichUserPrompt(prompt: string): string {
   const lower = prompt.toLowerCase();
   const wantsManyFloors = /\b(\d{1,2})\s*-?\s*floor|\bfull copy\b|\btower\b|\bhigh[- ]rise\b/.test(lower);
-  const isRadisson =
+  const isBrandChain =
     lower.includes('radisson') ||
+    lower.includes('marriott') ||
     lower.includes('olimp') ||
     lower.includes('olymp');
 
   const lines = [prompt.trim()];
 
-  if (isRadisson) {
+  if (isBrandChain) {
     lines.push(
       '',
-      'Hotel brief (Radisson Blu Olympiyskiy inspired — stylized game floor plan, not a literal blueprint):',
-      '- Generate 5 floors: ground lobby + 4 guest room floors.',
-      '- Moscow luxury business hotel: wide central corridor, double-loaded guest rooms, twin elevator core.',
-      '- Ground floor: reception (R), lobby seating (T), plants (P), twin elevators (2x2 EE block), emergency stairs (X), main entrance doors (D) on south wall.',
-      '- Guest floors: 6 walled rooms per floor; each room = walls (#), one door (D) to corridor (.), bed area (B), bathroom (b).',
-      '- Place twin elevators at columns 9-10, rows 13-14 on EVERY floor (same coordinates).',
-      '- Place emergency stairs at column 17, row 10 on EVERY floor.',
-      '- Do NOT scatter elevators on opposite sides of the building.',
-      '- Do NOT output a literal or exact copy of the real hotel. Keep the layout simplified, stylized, and fully playable.'
+      'Hotel brief (Marriott / Radisson-style business luxury hotel — stylized game floor plan, not a literal blueprint):',
+      '- Generate 4 to 6 floors: ground lobby + guest room floors. If the prompt asks for a tower, use up to 6 playable floors with a compact vertical core.',
+      '- Design a polished branded lobby with a main entrance, reception desk (R), concierge/staff area (S), lounge seating (T), plant decor (P), and a clear route to the elevator bank.',
+      '- Place the elevator bank as a single 2x2 EE core in the same location on every floor. Place emergency stairs X in a consistent service position on every floor.',
+      '- Use a clean guest floor layout with mixed room sizes: standard 2x2 bed rooms, a few larger executive or suite modules, and bathrooms (b) inside rooms.',
+      '- Keep hallways continuous, avoid random isolated rooms, and group guest rooms around a central corridor or hotel atrium.',
+      '- Put staff/service spaces near the back of the lobby and adjacent to the elevator core, not inside guest rooms.',
+      '- Add realistic hospitality details like a reception zone, meeting/lounge area, and clear guest circulation from entrance to guest floors.',
+      '- Do NOT output a literal floor plan of a real hotel. Use the brand style as inspiration and create a playable 20x20 tile layout.'
     );
   } else if (wantsManyFloors) {
     lines.push('', 'Generate up to 6 playable floors with identical elevator and stair coordinates on every floor.');
