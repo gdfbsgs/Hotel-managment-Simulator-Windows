@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useHotelStore } from '../store';
 import { TileType } from '../types';
 import { ZoomIn, ZoomOut, Maximize, X } from 'lucide-react';
@@ -25,7 +25,7 @@ const getTileColor = (type: TileType | 'eraser' | 'text') => {
 };
 
 export const Editor2D: React.FC = () => {
-  const { floors, activeFloorIndex, selectedTool, setTile, addLabel, removeLabel, guests } = useHotelStore();
+  const { floors, activeFloorIndex, selectedTool, setTile, addLabel, removeLabel, guests, setTileTexture, textureMap, rotateFurnitureAt } = useHotelStore();
   const [isDrawing, setIsDrawing] = useState(false);
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [zoom, setZoom] = useState(1);
@@ -35,6 +35,15 @@ export const Editor2D: React.FC = () => {
 
   const [labelPrompt, setLabelPrompt] = useState<{x: number, y: number} | null>(null);
   const [labelText, setLabelText] = useState('');
+  const [selectedTexture, setSelectedTexture] = useState<string | null>(null);
+  const [selectionStart, setSelectionStart] = useState<{x:number,y:number} | null>(null);
+  const [selectionRect, setSelectionRect] = useState<{x1:number,y1:number,x2:number,y2:number} | null>(null);
+  const [isMoving, setIsMoving] = useState(false);
+  const moveStartRef = useRef<{x:number,y:number} | null>(null);
+  const moveSnapshotRef = useRef<any[] | null>(null);
+  const [panOffset, setPanOffset] = useState<{x:number,y:number}>({ x: 0, y: 0 });
+  const panStartRef = useRef<{x:number,y:number} | null>(null);
+  const isPanningRef = useRef(false);
 
   const activeFloor = floors[activeFloorIndex];
   const grid = activeFloor?.grid;
@@ -51,14 +60,50 @@ export const Editor2D: React.FC = () => {
       setLabelText('');
       return;
     }
-    
+    if (selectedTool === 'select') {
+      // start selection or begin move
+      if (selectionRect && x >= selectionRect.x1 && x <= selectionRect.x2 && y >= selectionRect.y1 && y <= selectionRect.y2) {
+        // begin moving
+        setIsMoving(true);
+        moveStartRef.current = { x, y };
+        // snapshot selection
+        const snap: any[] = [];
+        for (let sy = selectionRect.y1; sy <= selectionRect.y2; sy++) {
+          const row: any[] = [];
+          for (let sx = selectionRect.x1; sx <= selectionRect.x2; sx++) {
+            row.push({ type: grid[sy][sx], texture: textureMap?.[`${activeFloorIndex}:${sx}:${sy}`] });
+          }
+          snap.push(row);
+        }
+        moveSnapshotRef.current = snap;
+      } else {
+        setSelectionStart({ x, y });
+        setSelectionRect({ x1: x, y1: y, x2: x, y2: y });
+      }
+      return;
+    }
+
     setIsDrawing(true);
     setStartPos({x, y});
     setDrawAxis(null);
     setTile(x, y, selectedTool);
+    if (selectedTexture && (selectedTool === 'floor' || selectedTool === 'wall')) {
+      setTileTexture(x, y, selectedTexture);
+    }
   };
 
   const handlePointerEnter = (x: number, y: number) => {
+    if (selectedTool === 'select') {
+      if (selectionStart) {
+        const x1 = Math.min(selectionStart.x, x);
+        const x2 = Math.max(selectionStart.x, x);
+        const y1 = Math.min(selectionStart.y, y);
+        const y2 = Math.max(selectionStart.y, y);
+        setSelectionRect({ x1, y1, x2, y2 });
+      }
+      return;
+    }
+
     if (isDrawing && selectedTool !== 'text') {
       if (snapToGrid && startPos) {
         let currentAxis = drawAxis;
@@ -76,10 +121,43 @@ export const Editor2D: React.FC = () => {
         if (currentAxis === 'y' && x !== startPos.x) return;
       }
       setTile(x, y, selectedTool);
+      if (selectedTexture && (selectedTool === 'floor' || selectedTool === 'wall')) {
+        setTileTexture(x, y, selectedTexture);
+      }
     }
   };
 
   const handlePointerUp = () => {
+    if (isMoving) {
+      // finalize move: place snapshot at offset
+      const mvStart = moveStartRef.current;
+      if (mvStart && moveSnapshotRef.current && selectionRect) {
+        // calculate offset by comparing previous start to current pointer (approx)
+        const dx = (startPos ? (startPos.x - mvStart.x) : 0);
+        const dy = (startPos ? (startPos.y - mvStart.y) : 0);
+        const snap = moveSnapshotRef.current;
+        for (let sy = 0; sy < snap.length; sy++) {
+          for (let sx = 0; sx < snap[0].length; sx++) {
+            const srcX = selectionRect.x1 + sx;
+            const srcY = selectionRect.y1 + sy;
+            const dstX = srcX + dx;
+            const dstY = srcY + dy;
+            if (dstX >= 0 && dstX < GRID_SIZE && dstY >= 0 && dstY < GRID_SIZE) {
+              const cell = snap[sy][sx];
+              setTile(dstX, dstY, cell.type === 'empty' ? 'floor' : (cell.type as any));
+              if (cell.texture) setTileTexture(dstX, dstY, cell.texture);
+            }
+            // clear source
+            setTile(srcX, srcY, 'eraser');
+            setTileTexture(srcX, srcY, null);
+          }
+        }
+      }
+      setIsMoving(false);
+      moveStartRef.current = null;
+      moveSnapshotRef.current = null;
+    }
+
     setIsDrawing(false);
     setStartPos(null);
     setDrawAxis(null);
@@ -100,6 +178,17 @@ export const Editor2D: React.FC = () => {
             <Maximize size={16} />
           </button>
         </div>
+        <div className="flex items-center gap-4 ml-4">
+          <div className="flex items-center gap-2">
+            <label className="text-[10px] text-slate-400 font-bold uppercase">Texture</label>
+            <select value={selectedTexture || ''} onChange={(e) => setSelectedTexture(e.target.value || null)} className="bg-slate-950 border border-slate-800 text-xs px-2 py-1 rounded">
+              <option value="">Default</option>
+              <option value="texture-grey-floor">Grey Floor</option>
+              <option value="texture-grey-wall">Grey Wall</option>
+              <option value="texture-terrazzo">Terrazzo</option>
+              <option value="texture-bathroom">Bathroom</option>
+            </select>
+          </div>
         <div className="flex items-center gap-2 ml-auto">
           <label className="text-[10px] uppercase font-bold text-slate-500 cursor-pointer" onClick={() => setSnapToGrid(!snapToGrid)}>
             Snap to Grid (Orthogonal)
@@ -111,18 +200,35 @@ export const Editor2D: React.FC = () => {
             <div className={`w-3 h-3 rounded-full transition-transform ${snapToGrid ? 'translate-x-4 bg-slate-950' : 'translate-x-0 bg-slate-400'}`}></div>
           </button>
         </div>
+        </div>
       </div>
+      
       <div 
         className="flex flex-1 items-center justify-center p-8 overflow-auto touch-none relative bg-slate-950"
-        onPointerUp={handlePointerUp}
-        onPointerLeave={handlePointerUp}
+        onPointerUp={(e) => { if (isPanningRef.current) { isPanningRef.current = false; panStartRef.current = null; e.currentTarget.releasePointerCapture?.(e.pointerId); } handlePointerUp(); }}
+        onPointerLeave={(e) => { if (isPanningRef.current) { isPanningRef.current = false; panStartRef.current = null; e.currentTarget.releasePointerCapture?.(e.pointerId); } handlePointerUp(); }}
+        onPointerDown={(e) => {
+          if (selectedTool === 'select') {
+            isPanningRef.current = true;
+            panStartRef.current = { x: e.clientX, y: e.clientY };
+            e.currentTarget.setPointerCapture?.(e.pointerId);
+          }
+        }}
+        onPointerMove={(e) => {
+          if (selectedTool === 'select' && isPanningRef.current && panStartRef.current) {
+            const dx = e.clientX - panStartRef.current.x;
+            const dy = e.clientY - panStartRef.current.y;
+            setPanOffset(p => ({ x: p.x + dx, y: p.y + dy }));
+            panStartRef.current = { x: e.clientX, y: e.clientY };
+          }
+        }}
       >
         <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#334155 1px, transparent 1px)', backgroundSize: '24px 24px' }}></div>
         <div className="relative z-10 bg-slate-900 p-3 rounded-2xl shadow-2xl border border-slate-800">
           <div className="relative">
             <div 
               className="grid bg-slate-950 gap-[1px] border border-slate-850 overflow-hidden rounded-lg"
-              style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))` }}
+              style={{ gridTemplateColumns: `repeat(${GRID_SIZE}, minmax(0, 1fr))`, transform: `translate(${panOffset.x}px, ${panOffset.y}px)` }}
             >
               {grid.map((row, y) => (
                 row.map((cell, x) => (
@@ -143,6 +249,12 @@ export const Editor2D: React.FC = () => {
                     {prevFloor && prevFloor.grid[y][x] !== 'empty' && cell === 'empty' && (
                       <div className="absolute inset-0 border-[2px] border-slate-750/30 border-dashed pointer-events-none" />
                     )}
+                      {selectionRect && x >= selectionRect.x1 && x <= selectionRect.x2 && y >= selectionRect.y1 && y <= selectionRect.y2 && (
+                        <div className="absolute inset-0 bg-amber-500/10 pointer-events-none" />
+                      )}
+                      {textureMap && textureMap[`${activeFloorIndex}:${x}:${y}`] && (
+                        <div className="absolute bottom-1 right-1 text-[9px] px-1 py-0.5 rounded bg-slate-900/60 text-slate-200 pointer-events-none">{textureMap[`${activeFloorIndex}:${x}:${y}`].replace('texture-','')}</div>
+                      )}
                   </div>
                 ))
               ))}

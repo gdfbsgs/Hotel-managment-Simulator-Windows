@@ -12,6 +12,8 @@ export interface Floor {
   name?: string;
   grid: TileType[][];
   labels?: Label[];
+  /** Per-cell furniture rotation in degrees (0/90/180/270). Only used for tiles like bed/table/reception etc. */
+  rotations?: Record<string, number>; // key = `${x}:${y}`
 }
 
 export interface FloorTemplate {

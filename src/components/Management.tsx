@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useHotelStore } from '../store';
-import { DEFAULT_BRANDS } from '../store';
+import { DEFAULT_BRANDS } from '../db';
 import { normalizeAiFloors } from '../aiHotel';
 import { OperationsDashboard } from './OperationsDashboard';
 import { 
@@ -66,7 +66,7 @@ export const Management: React.FC = () => {
     gameHour,
   } = useHotelStore();
 
-  const [activeTab, setActiveTab] = useState<'operations' | 'chain' | 'staff' | 'guests' | 'pricing' | 'presets' | 'categories' | 'bonuses'>('operations');
+  const [activeTab, setActiveTab] = useState<'operations' | 'chain' | 'staff' | 'guests' | 'presets' | 'categories' | 'bonuses'>('operations');
 
   // New Hotel Form State
   const [newHotelName, setNewHotelName] = useState('');
@@ -314,17 +314,7 @@ export const Management: React.FC = () => {
             <Crown size={14} />
             VIP & Guests
           </button>
-          <button 
-            onClick={() => setActiveTab('pricing')}
-            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
-              activeTab === 'pricing' 
-                ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/10' 
-                : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
-            }`}
-          >
-            <DollarSign size={14} />
-            Pricing
-          </button>
+          {/* Pricing tab removed per user request */}
           <button 
             onClick={() => setActiveTab('categories')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
@@ -865,52 +855,7 @@ export const Management: React.FC = () => {
           </div>
         )}
 
-        {/* Tab 4: Dynamic Pricing */}
-        {activeTab === 'pricing' && (
-          <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
-            <div className="p-5 border-b border-slate-800 bg-slate-950/40">
-              <h3 className="text-lg font-black text-white">Dynamic Pricing</h3>
-              <p className="text-sm text-slate-400 mt-1">Adjust base room rates. Pricing shifts standard guest satisfaction over time.</p>
-            </div>
-            <div className="p-5 space-y-4">
-              <div className="flex items-center justify-between p-3 bg-slate-950/30 border border-slate-800 rounded-xl">
-                <div>
-                  <p className="font-bold text-slate-200 text-sm">Standard Room Nightly Price</p>
-                  <p className="text-[11px] text-slate-500">Base fee charged nightly for regular beds.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-500 font-bold">$</span>
-                  <input 
-                    type="number" 
-                    min="10" 
-                    max="1000"
-                    value={roomRates?.standard ?? 50} 
-                    onChange={(e) => setRoomRate('standard', parseInt(e.target.value) || 50)}
-                    className="w-24 px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:border-amber-500 font-bold text-white text-sm"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between p-3 bg-slate-950/30 border border-slate-800 rounded-xl">
-                <div>
-                  <p className="font-bold text-slate-200 text-sm">Suite Nightly Price</p>
-                  <p className="text-[11px] text-slate-500">Premium service rate for VIP and deluxe suites.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="text-slate-500 font-bold">$</span>
-                  <input 
-                    type="number" 
-                    min="50" 
-                    max="5000"
-                    value={roomRates?.suite ?? 120} 
-                    onChange={(e) => setRoomRate('suite', parseInt(e.target.value) || 120)}
-                    className="w-24 px-3 py-2 bg-slate-950 border border-slate-800 rounded-lg focus:outline-none focus:border-amber-500 font-bold text-white text-sm"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
+        {/* Dynamic Pricing UI removed (empty/pricing tab) */}
 
         {/* Tab 5: AI & Presets */}
         {activeTab === 'presets' && (

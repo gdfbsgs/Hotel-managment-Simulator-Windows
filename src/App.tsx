@@ -4,19 +4,107 @@
  */
 
 import React, { useEffect, useState } from 'react';
+
+class ErrorBoundary extends React.Component<{ children: React.ReactNode }, { hasError: boolean; error: any }> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: any) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: any) {
+    // eslint-disable-next-line no-console
+    console.error('App crashed:', error);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div
+          style={{
+            height: '100vh',
+            width: '100vw',
+            background: '#0b1220',
+            color: '#e2e8f0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 16,
+            fontFamily: 'system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
+          }}
+        >
+          <div
+            style={{
+              maxWidth: 860,
+              width: '100%',
+              border: '1px solid rgba(148,163,184,0.35)',
+              background: 'rgba(2,6,23,0.65)',
+              borderRadius: 12,
+              padding: 16,
+            }}
+          >
+            <h2 style={{ margin: 0, fontSize: 18, fontWeight: 800, color: '#f59e0b' }}>
+              Runtime error (white screen fix)
+            </h2>
+            <p style={{ marginTop: 8, opacity: 0.9 }}>
+              The app crashed while rendering. See console for stack trace.
+            </p>
+            <pre
+              style={{
+                marginTop: 12,
+                whiteSpace: 'pre-wrap',
+                wordBreak: 'break-word',
+                background: 'rgba(15,23,42,0.9)',
+                border: '1px solid rgba(148,163,184,0.25)',
+                padding: 12,
+                borderRadius: 10,
+                color: '#f8fafc',
+                maxHeight: 360,
+                overflow: 'auto',
+              }}
+            >
+              {String(this.state.error?.stack || this.state.error || 'Unknown error')}
+            </pre>
+            <p style={{ marginTop: 12, opacity: 0.8, fontSize: 12 }}>
+              If you share the stack trace line(s) here, we can patch the exact issue.
+            </p>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
+
+
 import { Sidebar } from './components/Sidebar';
 import { Editor2D } from './components/Editor2D';
 import { Viewer3D } from './components/Viewer3D';
 import { Management } from './components/Management';
 import { Analytics } from './components/Analytics';
 import { AnimatedMoney } from './components/AnimatedMoney';
-import { useHotelStore, DEFAULT_BRANDS } from './store';
+import { useHotelStore } from './store';
+import { DEFAULT_BRANDS } from './db';
 import { Box, Layers, LogIn, LogOut, Save, User as UserIcon, Trophy, Sparkles, Star, Building2, TrendingUp, Menu, X, Share2, Check } from 'lucide-react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
 import { motion, AnimatePresence } from 'motion/react';
+import Onboarding from './components/Onboarding';
 
 export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppInner />
+    </ErrorBoundary>
+  );
+}
+
+function AppInner() {
+
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [copiedShare, setCopiedShare] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'saved' | 'saving' | 'idle'>('idle');
@@ -82,7 +170,8 @@ export default function App() {
         const loaded = loadFromLocal();
         setSaveStatus(loaded ? 'saved' : 'idle');
         if (!loaded) {
-          useHotelStore.getState().loadPreset('auto-preset');
+          // trigger onboarding when no local save exists
+          useHotelStore.getState().startOnboarding();
         }
       }
     });
@@ -329,6 +418,7 @@ Built and managed with ArchHotel Suite!`;
       </nav>
 
       <div className="flex-1 flex overflow-hidden relative">
+        <Onboarding />
         {appMode === 'Design' && (
           <>
             {/* Desktop Sidebar */}

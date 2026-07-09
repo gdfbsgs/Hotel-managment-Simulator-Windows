@@ -23,7 +23,10 @@ import {
   Flame
 } from 'lucide-react';
 
-const tools: { type: TileType | 'eraser' | 'text'; icon: React.FC<any>; label: string; color: string; description: string }[] = [
+import { Move } from 'lucide-react';
+
+const tools: { type: TileType | 'eraser' | 'text' | 'select'; icon: React.FC<any>; label: string; color: string; description: string }[] = [
+  { type: 'select', icon: Move, label: 'Select/Move', color: 'text-slate-300', description: 'Select and move blocks of tiles around the map.' },
   { type: 'floor', icon: Grid, label: 'Floor', color: 'text-slate-400', description: 'Construct floors. Guests need them to walk on and for placing other furniture.' },
   { type: 'wall', icon: Square, label: 'Wall', color: 'text-slate-800', description: 'Build sturdy walls to separate rooms and define pathways. Block guest movement.' },
   { type: 'door', icon: DoorClosed, label: 'Door', color: 'text-amber-700', description: 'Create entrance and exit points. Connects rooms together so guests and staff can pass through.' },

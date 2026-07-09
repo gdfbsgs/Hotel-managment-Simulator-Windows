@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { Floor, TileType, ViewMode, Label, AppMode, StaffNPC, GuestNPC, HotelData, StaffTask, RoomRates, GuestState, FloorTemplate, Milestone, Brand, HotelChain, RoomCategory, BonusProgram, OperationsReport } from './types';
 import { PRESETS } from './presets';
+import { DEFAULT_BRANDS, DEFAULT_ROOM_CATEGORIES, HOTEL_CHAINS } from './db';
 import { auth, db } from './firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { User, signInWithPopup, signOut } from 'firebase/auth';
@@ -13,41 +14,6 @@ const LOCAL_SAVE_KEY = 'archhotel_windows_save';
 
 const createEmptyGrid = () => Array.from({ length: GRID_SIZE }, () => Array(GRID_SIZE).fill('empty'));
 
-export const DEFAULT_BRANDS: Brand[] = [
-  {
-    id: 'b-budget',
-    name: 'Apex Budget',
-    description: 'Affordable, clean, dense layouts with classic service, but low overhead costs.',
-    vipMultiplier: 0.8,
-    bedMultiplier: 0.8,
-    styleColor: 'from-blue-600/20 to-blue-900/10 border-blue-500/30 text-blue-400',
-    vipSpawnRate: 0.08,
-    icon: '💰',
-    color: 'from-blue-500 to-cyan-500'
-  },
-  {
-    id: 'b-eco',
-    name: 'EcoZen Retreat',
-    description: 'Eco-friendly and natural design focus. Plants and tables gain double satisfaction, fast-tracking guest happiness!',
-    vipMultiplier: 1.2,
-    bedMultiplier: 1.1,
-    styleColor: 'from-emerald-600/20 to-emerald-900/10 border-emerald-500/30 text-emerald-400',
-    vipSpawnRate: 0.18,
-    icon: '🍃',
-    color: 'from-emerald-500 to-teal-500'
-  },
-  {
-    id: 'b-luxury',
-    name: 'Grand Luxe Signature',
-    description: 'Extravagant suite experiences, ultra-fast check-ins, and triple the rate of VIP arrivals!',
-    vipMultiplier: 1.8,
-    bedMultiplier: 1.6,
-    styleColor: 'from-amber-600/20 to-amber-900/10 border-amber-500/30 text-amber-400',
-    vipSpawnRate: 0.35,
-    icon: '👑',
-    color: 'from-amber-500 to-orange-500'
-  }
-];
 
 const getInitialMilestones = (): Milestone[] => [
   { id: 'm-floors-2', title: 'Growing Upward', description: 'Reach 2 hotel floors.', targetType: 'floors', targetValue: 2, unlocked: false, rarity: 'bronze' },
@@ -132,32 +98,7 @@ function checkMilestones(state: any, set: any) {
   }
 }
 
-export const DEFAULT_ROOM_CATEGORIES: RoomCategory[] = [
-  {
-    id: 'rc-standard',
-    name: 'Standard Room',
-    price: 50,
-    icon: '🛏️',
-    requiredTiles: ['bed'],
-    description: 'A cozy minimalist bedroom for budget-minded travelers. Requires a bed.'
-  },
-  {
-    id: 'rc-executive',
-    name: 'Executive Suite',
-    price: 120,
-    icon: '👑',
-    requiredTiles: ['bed', 'plant', 'bathroom'],
-    description: 'An expansive modern suite complete with organic flora and high-end bathing layout. Requires bed, plant, and bathroom.'
-  },
-  {
-    id: 'rc-penthouse',
-    name: 'Royal Penthouse',
-    price: 240,
-    icon: '🏰',
-    requiredTiles: ['bed', 'plant', 'bathroom', 'table', 'window'],
-    description: 'The pinnacle of luxury! Magnificent views, dining furniture, and botanics. Requires bed, plant, bathroom, table, and window.'
-  }
-];
+// Brands and room categories moved to src/db.ts
 
 const GUEST_NAMES = [
   'Olivia Chen', 'Liam Carter', 'Emma Nguyen', 'Noah Patel', 'Ava Martinez', 'Ethan Brooks',
@@ -339,7 +280,7 @@ interface HotelStore {
   activeFloorIndex: number;
   viewMode: ViewMode;
   appMode: AppMode;
-  selectedTool: TileType | 'eraser' | 'text';
+  selectedTool: TileType | 'eraser' | 'text' | 'select';
   roomRates: RoomRates;
   floorTemplates: FloorTemplate[];
   totalGuestsServed: number;
@@ -397,9 +338,26 @@ interface HotelStore {
   setActiveFloor: (index: number) => void;
   setViewMode: (mode: ViewMode) => void;
   setAppMode: (mode: AppMode) => void;
-  setSelectedTool: (tool: TileType | 'eraser' | 'text') => void;
+  setSelectedTool: (tool: TileType | 'eraser' | 'text' | 'select') => void;
+  needsOnboarding: boolean;
+  onboarding: {
+    step: number;
+    chainId: string | null;
+    brandId: string | null;
+    hotelName: string | null;
+    location: { lat: number; lng: number; address?: string } | null;
+  };
+  startOnboarding: () => void;
+  setOnboardingField: (field: string, value: any) => void;
+  completeOnboarding: () => void;
+  // Tile textures mapping: key = `${floorIndex}:${x}:${y}` -> texture id
+  textureMap: Record<string, string>;
+  setTileTexture: (x: number, y: number, textureId: string | null) => void;
   loadPreset: (presetId: string) => void;
+  /** Rotate furniture at cell (90° steps). Rotation only applies to furniture-like tiles. */
+  rotateFurnitureAt: (x: number, y: number) => void;
   resetAll: () => void;
+
 
   saveFloorTemplate: (name: string, description?: string) => void;
   loadFloorTemplate: (templateId: string) => void;
@@ -429,6 +387,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   viewMode: '2D',
   appMode: 'Design',
   selectedTool: 'floor',
+  textureMap: {},
   roomRates: { standard: 50, suite: 120 },
   roomCategories: DEFAULT_ROOM_CATEGORIES,
   bonusPrograms: DEFAULT_BONUS_PROGRAMS,
@@ -438,6 +397,19 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   milestones: getInitialMilestones(),
   activeMilestoneNotification: null,
   dismissMilestoneNotification: () => set({ activeMilestoneNotification: null }),
+
+  // Onboarding state for new players
+  needsOnboarding: false,
+  onboarding: {
+    step: 0,
+    chainId: null,
+    brandId: null,
+    hotelName: null,
+    location: null
+  },
+  startOnboarding: () => set({ needsOnboarding: true, onboarding: { step: 1, chainId: null, brandId: null, hotelName: null, location: null } }),
+  setOnboardingField: (field, value) => set((state: any) => ({ onboarding: { ...state.onboarding, [field]: value } })),
+  completeOnboarding: () => set({ needsOnboarding: false, onboarding: { step: 0, chainId: null, brandId: null, hotelName: null, location: null } }),
 
   chainName: 'Marriott & Radisson Hospitality Group',
   hotels: [
@@ -493,6 +465,13 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   operationsHistory: [],
 
   setChainName: (name) => set({ chainName: name }),
+
+  setTileTexture: (x, y, textureId) => set((state) => {
+    const key = `${state.activeFloorIndex}:${x}:${y}`;
+    const newMap = { ...(state.textureMap || {}) };
+    if (!textureId) delete newMap[key]; else newMap[key] = textureId;
+    return { textureMap: newMap } as any;
+  }),
 
   setActiveHotel: (hotelId) => set((state) => {
     const syncedHotels = syncActiveHotelHelper(state);
@@ -1435,22 +1414,49 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   setTile: (x, y, tool) => set((state) => {
     if ((tool as any) === 'text') return state;
 
+    // If we clear/overwrite a furniture tile, also clear any rotation entry for that cell.
+
+
     let newFloors = [...state.floors];
     if (tool === 'elevator') {
+      // Rule:
+      // - If user places elevator on ONE floor position (x,y), it should appear on *all* floors
+      //   at the same grid coordinate.
+      // - However, any existing elevator tiles from presets must be preserved (override rule).
+      //   So: we only force-add elevators on other floors when they don't already have one.
       newFloors = state.floors.map((floor, index) => {
         const newGrid = [...floor.grid];
         newGrid[y] = [...newGrid[y]];
-        if (index >= state.activeFloorIndex) {
-          newGrid[y][x] = 'elevator';
-        }
+
+        // If this floor already has an elevator at the same coordinate, keep it.
+        if (newGrid[y][x] === 'elevator') return { ...floor, grid: newGrid };
+
+        // Otherwise, place elevator on every floor at the same (x,y).
+        newGrid[y][x] = 'elevator';
         return { ...floor, grid: newGrid };
       });
     } else {
-      const newGrid = [...newFloors[state.activeFloorIndex].grid];
+      const newFloor = { ...newFloors[state.activeFloorIndex] };
+      const newGrid = [...newFloor.grid];
       newGrid[y] = [...newGrid[y]];
       const prevTile = newGrid[y][x];
       newGrid[y][x] = tool === 'eraser' ? 'empty' : tool;
-      newFloors[state.activeFloorIndex] = { ...newFloors[state.activeFloorIndex], grid: newGrid };
+
+      // Drop rotation when the tile no longer exists
+      const rotations = { ...(newFloor.rotations || {}) };
+      const rotKey = `${x}:${y}`;
+      if (tool === 'eraser' || tool !== prevTile) {
+        if (!rotKey) {
+          // no-op
+        }
+        if (tool === 'eraser' || tool === 'empty' || tool === 'floor' || tool === 'wall' || tool === 'door' || tool === 'window' || tool === 'elevator' || tool === 'stairs') {
+          delete rotations[rotKey];
+        }
+      }
+
+      newFloor.grid = newGrid;
+      newFloor.rotations = Object.keys(rotations).length ? rotations : undefined;
+      newFloors[state.activeFloorIndex] = newFloor;
 
       if (tool === 'eraser' && prevTile === 'elevator') {
         for (let index = state.activeFloorIndex + 1; index < newFloors.length; index++) {
@@ -1487,13 +1493,14 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   }),
 
   addFloor: () => set((state) => {
-    const prevGrid = state.floors[state.floors.length - 1]?.grid;
+    // When adding a new floor, preserve elevator shafts from the ground floor
+    const groundGrid = state.floors[0]?.grid;
     const newGrid = createEmptyGrid();
-    
-    if (prevGrid) {
-      for (let y = 0; y < prevGrid.length; y++) {
-        for (let x = 0; x < prevGrid[y].length; x++) {
-          if (prevGrid[y][x] === 'elevator') {
+
+    if (groundGrid) {
+      for (let y = 0; y < groundGrid.length; y++) {
+        for (let x = 0; x < groundGrid[y].length; x++) {
+          if (groundGrid[y][x] === 'elevator') {
             newGrid[y][x] = 'elevator';
           }
         }
@@ -1522,6 +1529,29 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       return { floors, activeFloorIndex: 0, appMode: 'Design', viewMode: '2D', hotels: synced };
     }
     return state;
+  }),
+
+  rotateFurnitureAt: (x, y) => set((state) => {
+    const activeFloor = state.floors[state.activeFloorIndex];
+    if (!activeFloor) return state;
+
+    const tile = activeFloor.grid[y]?.[x];
+    // Only rotate furniture-like tiles, not structural ones.
+    const ROTATABLE: TileType[] = ['bed', 'table', 'reception', 'plant', 'bathroom', 'staff', 'elevator', 'stairs'];
+    if (!tile || tile === 'empty' || !ROTATABLE.includes(tile as TileType)) return state;
+
+    const rotKey = `${x}:${y}`;
+    const current = activeFloor.rotations?.[rotKey] ?? 0;
+    const next = (current + 90) % 360;
+
+    const rotations = { ...(activeFloor.rotations || {}) };
+    rotations[rotKey] = next;
+
+    const newFloors = [...state.floors];
+    newFloors[state.activeFloorIndex] = { ...activeFloor, rotations };
+
+    const synced = syncActiveHotelHelper({ ...state, floors: newFloors });
+    return { floors: newFloors, hotels: synced };
   }),
 
   resetAll: () => set((state) => {

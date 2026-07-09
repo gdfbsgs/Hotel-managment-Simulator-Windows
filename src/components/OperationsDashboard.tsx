@@ -1,5 +1,6 @@
 import React from 'react';
-import { useHotelStore, DEFAULT_BRANDS } from '../store';
+import { useHotelStore } from '../store';
+import { DEFAULT_BRANDS } from '../db';
 import { HOTEL_MARKETS, getPhaseLabel, getSeasonMultiplier } from '../operations';
 import {
   Activity,

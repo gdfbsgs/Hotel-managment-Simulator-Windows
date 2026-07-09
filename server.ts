@@ -1,6 +1,6 @@
 import express from "express";
 import path from "path";
-import { exec } from "child_process";
+import { spawn } from "child_process";
 import { createServer as createViteServer } from "vite";
 import dotenv from "dotenv";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -41,18 +41,27 @@ function getGenAI(): GoogleGenAI {
 function openBrowser(url: string) {
   if (process.env.OPEN_BROWSER === "false") return;
 
-  const command =
-    process.platform === "win32"
-      ? `start "" "${url}"`
-      : process.platform === "darwin"
-        ? `open "${url}"`
-        : `xdg-open "${url}"`;
+  let command: string;
+  let args: string[];
 
-  exec(command, (error) => {
-    if (error) {
-      console.log(`Open your browser manually: ${url}`);
-    }
-  });
+  if (process.platform === "win32") {
+    command = "cmd";
+    args = ["/c", "start", "", url];
+  } else if (process.platform === "darwin") {
+    command = "open";
+    args = [url];
+  } else {
+    command = "xdg-open";
+    args = [url];
+  }
+
+  try {
+    const child = spawn(command, args, { stdio: "ignore", detached: true, shell: process.platform === "win32" });
+    child.on("error", () => console.log(`Open your browser manually: ${url}`));
+    child.unref();
+  } catch {
+    console.log(`Open your browser manually: ${url}`);
+  }
 }
 
 async function startServer() {

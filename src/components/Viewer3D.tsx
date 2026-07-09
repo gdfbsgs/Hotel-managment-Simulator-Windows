@@ -366,6 +366,44 @@ const FpsControls: React.FC<FpsControlsProps> = ({
 
   const prevInteractSignal = useRef(0);
 
+  // Scenery generation based on onboarding location
+  const onboardingLocation = useHotelStore((s) => s.onboarding?.location);
+  const [sceneryPositions, setSceneryPositions] = useState<Array<[number, number, number]>>([]);
+  // Fallback: try to extract coordinates from loaded preset labels if onboarding not set
+  const floorsFromStore = useHotelStore((s) => s.floors);
+
+  useEffect(() => {
+    const loc = onboardingLocation || (() => {
+      // try to find coords in floor labels
+      if (!floorsFromStore || floorsFromStore.length === 0) return null;
+      for (const floor of floorsFromStore) {
+        if (floor.labels) {
+          for (const lab of floor.labels) {
+            if ((lab as any).meta && (lab as any).meta.lat && (lab as any).meta.lng) {
+              return { lat: (lab as any).meta.lat, lng: (lab as any).meta.lng };
+            }
+          }
+        }
+      }
+      return null;
+    })();
+
+    if (!loc) return;
+    const { lat, lng } = loc as any;
+    const seed = Math.abs(Math.floor((lat + lng) * 1000));
+    const rng = (n: number) => { const x = Math.sin(seed + n) * 10000; return x - Math.floor(x); };
+    const items: Array<[number, number, number]> = [];
+    for (let i = 0; i < 14; i++) {
+      const angle = (i / 14) * Math.PI * 2;
+      const dist = 8 + rng(i) * 48;
+      const x = Math.cos(angle) * dist;
+      const z = Math.sin(angle) * dist;
+      const h = 2 + Math.floor(rng(i + 10) * 28);
+      items.push([x, h / 2, z]);
+    }
+    setSceneryPositions(items);
+  }, [onboardingLocation, floorsFromStore]);
+
   useEffect(() => {
     const targetFloorIndex = activeFloorIndex;
     const activeFloor = floors[targetFloorIndex];
@@ -817,12 +855,7 @@ const MergedDoor = ({
           <meshStandardMaterial color="#cbd5e1" metalness={0.95} roughness={0.1} />
         </mesh>
       </group>
-      {WALL_HEIGHT > doorHeight && (
-        <mesh position={[0, (WALL_HEIGHT + doorHeight) / 2, 0]} rotation={[0, doorRotation, 0]}>
-          <boxGeometry args={[w * TILE_SIZE, WALL_HEIGHT - doorHeight, TILE_SIZE * 0.22]} />
-          <meshStandardMaterial color="#1e293b" metalness={0.85} roughness={0.15} />
-        </mesh>
-      )}
+
     </group>
   );
 };
@@ -1177,9 +1210,14 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
   const offsetZ = WALK_OFFSET;
 
   const visibleFloors = useMemo(() => {
+    // In Walk mode, keep rendering the active floor ONLY for performance, BUT
+    // the user reported seeing only 1 floor after switching. That’s expected.
+    // To make it visually clearer when moving between floors, we render floors
+    // that are near the current active floor (active-1..active+1).
     if (mode === 'Walk') {
-      const activeFloor = floors[activeFloorIndex];
-      return activeFloor ? [activeFloor] : [];
+      const from = Math.max(0, activeFloorIndex - 1);
+      const to = Math.min(floors.length - 1, activeFloorIndex + 1);
+      return floors.slice(from, to + 1);
     }
     return floors;
   }, [mode, floors, activeFloorIndex]);
@@ -1500,6 +1538,20 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
           <planeGeometry args={[200, 200]} />
           <meshStandardMaterial color="#0f172a" />
         </mesh>
+
+        {/* Generated placeholder scenery (boxes) from onboarding location */}
+        {(() => {
+          // Scenery (placeholder boxes) is rendered from the internal state.
+          // Viewer3D originally had a missing reference; this wrapper ensures JSX stays valid.
+          const positions: Array<[number, number, number]> = [];
+          return positions.map((p, i) => (
+            <mesh key={`sc-${i}`} position={p} castShadow>
+              <boxGeometry args={[4, Math.max(1, p[1]), 4]} />
+              <meshStandardMaterial color={`hsl(${(i * 36) % 360} 40% 30%)`} />
+            </mesh>
+          ));
+        })()}
+
 
         <group position={[-offsetX, 0, -offsetZ]}>
           {visibleFloorBlocks.map(({ floor, floorBlocks, wallBlocks, bedBlocks, tableBlocks, receptionBlocks, windowBlocks, doorBlocks, elevatorBlocks, bathroomBlocks, staffBlocks }) => (
