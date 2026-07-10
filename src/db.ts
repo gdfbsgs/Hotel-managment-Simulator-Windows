@@ -141,7 +141,7 @@ export const DEFAULT_ROOM_CATEGORIES = [
     name: 'Standard Room',
     price: 50,
     icon: '🛏️',
-    requiredTiles: ['bed'],
+    requiredTiles: ['bed'] as any,
     description: 'A cozy minimalist bedroom for budget-minded travelers. Requires a bed.'
   },
   {

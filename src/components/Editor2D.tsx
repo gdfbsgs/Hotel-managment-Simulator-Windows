@@ -26,6 +26,11 @@ const getTileColor = (type: TileType | 'eraser' | 'text') => {
 
 export const Editor2D: React.FC = () => {
   const { floors, activeFloorIndex, selectedTool, setTile, addLabel, removeLabel, guests, setTileTexture, textureMap, rotateFurnitureAt } = useHotelStore();
+
+  const handleRotateCell = (x: number, y: number) => {
+    // Rotate only furniture-like tiles.
+    rotateFurnitureAt(x, y);
+  };
   const [isDrawing, setIsDrawing] = useState(false);
   const [snapToGrid, setSnapToGrid] = useState(true);
   const [zoom, setZoom] = useState(1);
@@ -243,6 +248,11 @@ export const Editor2D: React.FC = () => {
                     onPointerEnter={(e) => {
                       e.preventDefault();
                       handlePointerEnter(x, y);
+                    }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      // Right-click rotates furniture blocks.
+                      handleRotateCell(x, y);
                     }}
                     draggable={false}
                   >

@@ -9,9 +9,11 @@ import {
   enrichUserPrompt,
   normalizeAiFloors,
 } from "./src/aiHotel.ts";
+import { ScenerySpec, SceneryItem } from "./src/types.ts";
 
 dotenv.config({ path: ".env.local" });
 dotenv.config();
+
 
 const PORT = Number(process.env.PORT) || 3000;
 const isProduction = process.env.NODE_ENV === "production";
@@ -79,10 +81,217 @@ async function startServer() {
     });
   });
 
+  // Scenery: Google Places around hotel location (with deterministic fallback)
+  app.post("/api/scenery-from-location", async (req, res) => {
+    try {
+      const { lat, lng, radiusMeters } = req.body as {
+        lat: number;
+        lng: number;
+        radiusMeters?: number;
+      };
+
+      if (typeof lat !== "number" || typeof lng !== "number") {
+        return res.status(400).json({ error: "lat/lng required" });
+      }
+
+      const radius = typeof radiusMeters === "number" ? radiusMeters : 200;
+      const specBase: ScenerySpec = {
+        center: { lat, lng },
+        radiusMeters: radius,
+        items: [],
+        generatedAt: new Date().toISOString(),
+        source: "fallback",
+      };
+
+      const googleKey = process.env.GOOGLE_MAPS_API_KEY;
+      if (!googleKey || googleKey === "MY_GOOGLE_MAPS_API_KEY") {
+        // Deterministic fallback around the location.
+        const seed = Math.abs(Math.floor((lat + lng) * 10000));
+        const rng = (n: number) => {
+          const x = Math.sin(seed + n) * 10000;
+          return x - Math.floor(x);
+        };
+
+        const typeCycle: SceneryItem["type"][] = [
+          "park",
+          "landmark",
+          "restaurant",
+          "water",
+          "road",
+          "natural",
+          "poi",
+          "generic",
+        ];
+
+        const items: SceneryItem[] = [];
+        const cap = 30;
+        for (let i = 0; i < cap; i++) {
+          const angle = (i / cap) * Math.PI * 2;
+          const dist = (0.15 + rng(i) * 0.85) * radius;
+          const dLat = (dist * Math.cos(angle)) / 111320;
+          const dLng = (dist * Math.sin(angle)) / (111320 * Math.cos((lat * Math.PI) / 180));
+          const t = typeCycle[i % typeCycle.length];
+          items.push({
+            id: `fallback-${i}`,
+            type: t,
+            lat: lat + dLat,
+            lng: lng + dLng,
+            name:
+              t === "park"
+                ? "Scenic Park"
+                : t === "landmark"
+                ? "City Landmark"
+                : t === "water"
+                ? "Water Feature"
+                : t === "restaurant"
+                ? "Local Eatery"
+                : t === "road"
+                ? "Main Road"
+                : t === "natural"
+                ? "Natural View"
+                : t === "poi"
+                ? "Nearby POI"
+                : "Generic Point",
+            score: 0.3 + rng(i + 99) * 0.7,
+          });
+        }
+
+        return res.json({ ...specBase, items, source: "fallback" });
+      }
+
+      // Google Places Nearby Search (REST)
+      const fetchJson = async (url: string) => {
+        const r = await fetch(url);
+        if (!r.ok) throw new Error(`Google request failed: ${r.status}`);
+        return r.json() as Promise<any>;
+      };
+
+      const baseUrl = "https://maps.googleapis.com/maps/api/place/nearbysearch/json";
+
+      const types: Array<{ type: string; weight: number }> = [
+        { type: "park", weight: 1.0 },
+        { type: "tourist_attraction", weight: 0.9 },
+        { type: "landmark", weight: 0.9 },
+        { type: "restaurant", weight: 1.0 },
+        { type: "natural_feature", weight: 0.7 },
+        { type: "lodging", weight: 0.4 },
+        // roads/water are not reliable via Places types; approximate with more general results
+        { type: "shopping_mall", weight: 0.25 },
+      ];
+
+      const all: SceneryItem[] = [];
+      const seen = new Set<string>();
+
+      for (let i = 0; i < types.length; i++) {
+        const t = types[i];
+        const url = `${baseUrl}?key=${encodeURIComponent(googleKey)}&location=${lat},${lng}&radius=${Math.round(
+          radius
+        )}&type=${encodeURIComponent(t.type)}&rankby=distance`;
+
+        const data = await fetchJson(url);
+        const results: any[] = Array.isArray(data.results) ? data.results : [];
+
+        for (const p of results) {
+          const placeId = p.place_id ? String(p.place_id) : null;
+          if (!placeId || seen.has(placeId)) continue;
+
+          const pLat = p.geometry?.location?.lat;
+          const pLng = p.geometry?.location?.lng;
+          if (typeof pLat !== "number" || typeof pLng !== "number") continue;
+
+          // Map google place types to our scenery item types (stylized categories)
+          const gTypes: string[] = Array.isArray(p.types) ? p.types : [];
+
+          const mapType = (): SceneryItem["type"] => {
+            if (gTypes.includes("park") || t.type === "park") return "park";
+            if (t.type === "restaurant") return "restaurant";
+            if (t.type === "natural_feature") return "natural";
+            if (t.type === "tourist_attraction") return "landmark";
+            if (t.type === "landmark") return "landmark";
+            if (t.type === "lodging") return "poi";
+            if (t.type === "shopping_mall") return "poi";
+            return "generic";
+          };
+
+          const mapped = mapType();
+
+          all.push({
+            id: placeId,
+            type: mapped,
+            lat: pLat,
+            lng: pLng,
+            name: p.name ? String(p.name) : undefined,
+            placeId,
+            score: typeof p.rating === "number" ? Math.max(0, Math.min(1, p.rating / 5)) : t.weight,
+          });
+          seen.add(placeId);
+
+          if (all.length >= 30) break;
+        }
+
+        if (all.length >= 30) break;
+      }
+
+      return res.json({
+        ...specBase,
+        items: all.slice(0, 30),
+        source: "google-places",
+      });
+    } catch (e: any) {
+      // Fallback to deterministic spec on errors, but return 200 to keep UX simple
+      const { lat, lng, radiusMeters } = req.body || {};
+      const radius = typeof radiusMeters === "number" ? radiusMeters : 200;
+      if (typeof lat === "number" && typeof lng === "number") {
+        const seed = Math.abs(Math.floor((lat + lng) * 10000));
+        const rng = (n: number) => {
+          const x = Math.sin(seed + n) * 10000;
+          return x - Math.floor(x);
+        };
+        const typeCycle: SceneryItem["type"][] = [
+          "park",
+          "landmark",
+          "restaurant",
+          "water",
+          "road",
+          "natural",
+          "poi",
+          "generic",
+        ];
+        const cap = 30;
+        const items: SceneryItem[] = [];
+        for (let i = 0; i < cap; i++) {
+          const angle = (i / cap) * Math.PI * 2;
+          const dist = (0.15 + rng(i) * 0.85) * radius;
+          const dLat = (dist * Math.cos(angle)) / 111320;
+          const dLng = (dist * Math.sin(angle)) / (111320 * Math.cos((lat * Math.PI) / 180));
+          const t = typeCycle[i % typeCycle.length];
+          items.push({
+            id: `fallback-err-${i}`,
+            type: t,
+            lat: lat + dLat,
+            lng: lng + dLng,
+            name: "Nearby",
+            score: 0.2,
+          });
+        }
+        return res.json({
+          center: { lat, lng },
+          radiusMeters: radius,
+          items,
+          generatedAt: new Date().toISOString(),
+          source: "fallback",
+        } satisfies ScenerySpec);
+      }
+
+      return res.status(500).json({ error: "Scenery generation failed" });
+    }
+  });
+
   app.post("/api/generate-hotel", async (req, res) => {
     try {
       const { prompt } = req.body;
       const ai = getGenAI();
+
       const userPrompt = enrichUserPrompt(
         typeof prompt === "string" && prompt.trim()
           ? prompt.trim()

@@ -188,3 +188,38 @@ export interface HotelChain {
   roomCategories?: RoomCategory[];
   bonusPrograms?: BonusProgram[];
 }
+
+export interface HotelLocation {
+  lat: number;
+  lng: number;
+  address?: string;
+}
+
+export type SceneryItemType =
+  | 'park'
+  | 'landmark'
+  | 'restaurant'
+  | 'natural'
+  | 'water'
+  | 'road'
+  | 'poi'
+  | 'generic';
+
+export interface SceneryItem {
+  id: string;
+  type: SceneryItemType;
+  lat: number;
+  lng: number;
+  name?: string;
+  placeId?: string;
+  score?: number;
+}
+
+export interface ScenerySpec {
+  center: HotelLocation;
+  radiusMeters: number;
+  items: SceneryItem[];
+  generatedAt: string;
+  source: 'google-places' | 'fallback';
+}
+

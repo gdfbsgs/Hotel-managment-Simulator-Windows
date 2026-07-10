@@ -2,9 +2,10 @@ import React, { useState } from 'react';
 import { useHotelStore } from '../store';
 
 export const Onboarding: React.FC = () => {
-  const { needsOnboarding, startOnboarding, setOnboardingField, onboarding, completeOnboarding, createCustomBrand, createHotel, addHotel } = useHotelStore();
+  const { needsOnboarding, setOnboardingField, onboarding, completeOnboarding, createCustomBrand, addHotel } = useHotelStore();
   const [addressQuery, setAddressQuery] = useState('');
   const [searching, setSearching] = useState(false);
+
 
   if (!needsOnboarding) return null;
 
@@ -24,28 +25,66 @@ export const Onboarding: React.FC = () => {
     } finally { setSearching(false); }
   };
 
-  return (
+return (
     <div className="fixed inset-0 z-60 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-slate-950/80 backdrop-blur-sm" />
       <div className="relative w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl p-6 z-10">
-        <h3 className="text-xl font-bold mb-2">Welcome — Create Your Hotel Chain</h3>
-        <p className="text-sm text-slate-400 mb-4">First, select or create your hotel chain and brand, then set your hotel's name and location.</p>
+        <h3 className="text-xl font-bold mb-2">Welcome — Build Your Property</h3>
+        <p className="text-sm text-slate-400 mb-4">Choose Hotel or Residences, then set a name and location.</p>
 
         <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs text-slate-400">Chain Name</label>
-            <input className="w-full mt-1 px-2 py-1 bg-slate-950 border border-slate-800 rounded" onChange={(e)=> useHotelStore.getState().setOnboardingField('chainId', e.target.value)} placeholder="My Chain Name" />
+          <div className="col-span-2">
+            <label className="text-xs text-slate-400">Building Type</label>
+            <div className="mt-1 flex gap-2">
+              <button
+                type="button"
+                onClick={() => useHotelStore.getState().setOnboardingField('buildingType', 'hotel')}
+                className={`flex-1 px-3 py-2 rounded border text-sm font-bold transition-all ${
+                  onboarding.buildingType === 'hotel' ? 'bg-amber-500 text-slate-950 border-amber-400' : 'bg-slate-950/40 text-slate-200 border-slate-800 hover:bg-slate-800/40'
+                }`}
+              >
+                Hotel
+              </button>
+              <button
+                type="button"
+                onClick={() => useHotelStore.getState().setOnboardingField('buildingType', 'residences')}
+                className={`flex-1 px-3 py-2 rounded border text-sm font-bold transition-all ${
+                  onboarding.buildingType === 'residences' ? 'bg-amber-500 text-slate-950 border-amber-400' : 'bg-slate-950/40 text-slate-200 border-slate-800 hover:bg-slate-800/40'
+                }`}
+              >
+                Residences
+              </button>
+            </div>
           </div>
-          <div>
-            <label className="text-xs text-slate-400">Brand Name</label>
-            <input className="w-full mt-1 px-2 py-1 bg-slate-950 border border-slate-800 rounded" onChange={(e)=> useHotelStore.getState().setOnboardingField('brandId', e.target.value)} placeholder="My Brand" />
-          </div>
+
+          {onboarding.buildingType === 'hotel' && (
+            <>
+              <div>
+                <label className="text-xs text-slate-400">Chain Name</label>
+                <input className="w-full mt-1 px-2 py-1 bg-slate-950 border border-slate-800 rounded" onChange={(e)=> useHotelStore.getState().setOnboardingField('chainId', e.target.value)} placeholder="My Chain Name" />
+              </div>
+              <div>
+                <label className="text-xs text-slate-400">Brand Name</label>
+                <input className="w-full mt-1 px-2 py-1 bg-slate-950 border border-slate-800 rounded" onChange={(e)=> useHotelStore.getState().setOnboardingField('brandId', e.target.value)} placeholder="My Brand" />
+              </div>
+
+              <div className="mt-2 col-span-2">
+                <label className="text-xs text-slate-400">Full Hotel Name</label>
+                <input className="w-full mt-1 px-2 py-1 bg-slate-950 border border-slate-800 rounded" onChange={(e)=> useHotelStore.getState().setOnboardingField('hotelName', e.target.value)} placeholder="Grand Plaza Resort" />
+              </div>
+            </>
+          )}
+
+          {onboarding.buildingType === 'residences' && (
+            <div className="col-span-2 mt-2">
+              <label className="text-xs text-slate-400">Full Residence Name</label>
+              <input className="w-full mt-1 px-2 py-1 bg-slate-950 border border-slate-800 rounded" onChange={(e)=> useHotelStore.getState().setOnboardingField('residenceName', e.target.value)} placeholder="Skyline Studio Residences" />
+              <p className="text-[11px] text-slate-500 mt-1">Reception is optional for Residences (cafe/tables still work).</p>
+            </div>
+          )}
         </div>
 
-        <div className="mt-4">
-          <label className="text-xs text-slate-400">Full Hotel Name</label>
-          <input className="w-full mt-1 px-2 py-1 bg-slate-950 border border-slate-800 rounded" onChange={(e)=> useHotelStore.getState().setOnboardingField('hotelName', e.target.value)} placeholder="Grand Plaza Resort" />
-        </div>
+
 
         <div className="mt-4">
           <label className="text-xs text-slate-400">Location (address)</label>
@@ -53,6 +92,7 @@ export const Onboarding: React.FC = () => {
             <input className="flex-1 px-2 py-1 bg-slate-950 border border-slate-800 rounded" value={addressQuery} onChange={(e)=> setAddressQuery(e.target.value)} placeholder="Enter city or address" />
             <button className="px-3 py-1 bg-amber-500 rounded" onClick={doGeocode} disabled={searching}>{searching ? '...' : 'Find'}</button>
           </div>
+
           {onboarding.location && (
             <div className="mt-2 text-sm text-slate-300 border border-slate-800 p-2 rounded">
               <div>Found: {onboarding.location.address} ({onboarding.location.lat.toFixed(4)}, {onboarding.location.lng.toFixed(4)})</div>
@@ -101,3 +141,4 @@ export const Onboarding: React.FC = () => {
 };
 
 export default Onboarding;
+
