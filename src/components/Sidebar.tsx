@@ -226,7 +226,7 @@ export const Sidebar: React.FC = () => {
             className="w-full py-2 bg-rose-950/20 hover:bg-rose-950/40 border border-rose-900/30 text-rose-400 rounded-lg text-xs font-bold transition-colors flex items-center justify-center gap-2"
           >
             <Trash2 size={14} />
-            Reset Project
+Complete Reset
           </button>
         </Tooltip>
       </div>

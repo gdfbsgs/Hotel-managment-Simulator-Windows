@@ -4,7 +4,7 @@ import { PRESETS } from './presets';
 import { DEFAULT_BRANDS, DEFAULT_ROOM_CATEGORIES, HOTEL_CHAINS } from './db';
 import { auth, db } from './firebase';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { User, signInWithPopup, signOut } from 'firebase/auth';
+import { User, signInWithRedirect, signOut } from 'firebase/auth';
 import { googleProvider } from './firebase';
 import confetti from 'canvas-confetti';
 import { buildOperationsReport, getDayPhase, getGuestSpawnChance, calculateDemandScore, calculateStarRating, countRoomInventory } from './operations';
@@ -101,9 +101,46 @@ function checkMilestones(state: any, set: any) {
 // Brands and room categories moved to src/db.ts
 
 const GUEST_NAMES = [
-  'Olivia Chen', 'Liam Carter', 'Emma Nguyen', 'Noah Patel', 'Ava Martinez', 'Ethan Brooks',
-  'Sophia Kim', 'Mason Smith', 'Isabella Lee', 'Lucas Johnson', 'Mia Rivera', 'Jackson Wright',
-  'Harper Clarke', 'Aiden Chen', 'Aria Bennett', 'Sebastian Hall', 'Charlotte Brooks', 'Leo Foster'
+  'Liam Smith', 'Oliver Johnson', 'James Williams', 'Elijah Brown', 'William Jones',
+  'Henry Garcia', 'Lucas Miller', 'Benjamin Davis', 'Theodore Rodriguez', 'Mateo Martinez',
+  'Levi Hernandez', 'Sebastian Lopez', 'Daniel Gonzalez', 'Jack Wilson', 'Michael Anderson',
+  'Alexander Thomas', 'Owen Taylor', 'Asher Moore', 'Samuel Jackson', 'Ethan Martin',
+  'Leo Lee', 'Jackson Perez', 'Mason Thompson', 'Ezra White', 'John Harris',
+  'Hudson Sanchez', 'Luca Clark', 'Aiden Ramirez', 'Joseph Lewis', 'David Robinson',
+  'Jacob Walker', 'Logan Young', 'Luke Allen', 'Julian King', 'Gabriel Wright',
+  'Grayson Scott', 'Wyatt Torres', 'Matthew Nguyen', 'Maverick Hill', 'Dylan Flores',
+  'Isaac Green', 'Elias Adams', 'Anthony Nelson', 'Thomas Baker', 'Jayden Hall',
+  'Carter Rivera', 'Santiago Campbell', 'Ezekiel Mitchell', 'Charles Carter', 'Josiah Roberts',
+  'Caleb Gomez', 'Cooper Phillips', 'Lincoln Evans', 'Miles Turner', 'Christopher Diaz',
+  'Nathan Parker', 'Isaiah Cruz', 'Kai Edwards', 'Joshua Collins', 'Andrew Reyes',
+  'Angel Stewart', 'Adrian Morris', 'Miles Morales', 'Nolan Murphy', 'Wes Cook',
+  'Ian Rogers', 'Christian Morgan', 'Colton Peterson', 'Brooks Cooper', 'Axel Reed',
+  'Silas Bailey', 'Easton Bell', 'Dominic Gomez', 'Waylon Kelly', 'Jose Howard',
+  'Ian Ward', 'Carson Cox', 'Jaxson Diaz', 'Nova Richardson', 'Xavier Wood',
+  'Dominic Watson', 'Greyson Brooks', 'Adam Bennett', 'Ian Gray', 'Austin James',
+  'Jordan Reyes', 'Xavier Cruz', 'Jace Myers', 'Everett Long', 'Declan Foster',
+  'Parker Sanders', 'Andrew Ross', 'Christian Powell', 'Robert Sullivan', 'Silas Russell',
+  'Nolan Ortiz', 'Easton Jenkins', 'Brody Gutierrez', 'Landon Perry', 'Jax Butler',
+  'Olivia Smith', 'Emma Johnson', 'Amelia Williams', 'Ava Brown', 'Sophia Jones',
+  'Isabella Garcia', 'Luna Miller', 'Mia Davis', 'Charlotte Rodriguez', 'Evelyn Martinez',
+  'Harper Hernandez', 'Scarlett Lopez', 'Nova Gonzalez', 'Aurora Wilson', 'Ella Anderson',
+  'Avery Thomas', 'Aria Taylor', 'Lily Moore', 'Chloe Jackson', 'Layla Martin',
+  'Mila Lee', 'Hazel Perez', 'Ellie Thompson', 'Ivy White', 'Harper Harris',
+  'Grace Sanchez', 'Willow Clark', 'Emilia Ramirez', 'Riley Lewis', 'Naomi Robinson',
+  'Elizabeth Walker', 'Eleanor Young', 'Elena Allen', 'Mia King', 'Maya Wright',
+  'Chloe Scott', 'Zoey Torres', 'Penelope Nguyen', 'Emily Hill', 'Madison Flores',
+  'Bella Green', 'Eliana Adams', 'Stella Nelson', 'Natalie Baker', 'Paisley Hall',
+  'Addison Rivera', 'Violet Campbell', 'Athena Mitchell', 'Hazel Carter', 'Eden Roberts',
+  'Sadie Gomez', 'Sophie Phillips', 'Autumn Evans', 'Quinn Turner', 'Ruby Diaz',
+  'Piper Parker', 'Lydia Cruz', 'Josephine Edwards', 'Jade Collins', 'Cora Reyes',
+  'Brielle Stewart', 'Clara Morris', 'Vivian Rogers', 'Delilah Reed', 'Madeline Bailey',
+  'Peyton Bell', 'Kinsley Kelly', 'Liliana Ward', 'Natalia Cox', 'Jade Richardson',
+  'Nicole Wood', 'Alice Watson', 'Savanna Brooks', 'Skyler Bennett', 'Reagan Gray',
+  'Alyssa James', 'Charlie Myers', 'Alexandra Long', 'Lorelei Foster', 'Mary Sanders',
+  'Joanna Ross', 'Melody Powell', 'Mackenzie Sullivan', 'Julia Russell', 'Rowen Ortiz',
+  'Reese Jenkins', 'Margaret Gutierrez', 'Iris Perry', 'Vivian Butler', 'Valerie Barnes',
+  'Eden Fisher', 'Eloise Henderson', 'Michelle Coleman', 'Katherine Simmons', 'Rylee Patterson',
+  'Alexandra Jordan', 'Melanie Reynolds', 'Aubrey Hamilton', 'Cecilia Graham', 'Mariah Wallace'
 ];
 
 const VIP_NAMES = [
@@ -626,11 +663,12 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   
   login: async () => {
     try {
-      const result = await signInWithPopup(auth, googleProvider);
-      set({ user: result.user });
-      await get().loadFromCloud(result.user.uid);
+      // Popup-based auth is unstable in some browsers/environments.
+      // Redirect flow is more reliable (we finalize via getRedirectResult in App.tsx).
+      await signInWithRedirect(auth, googleProvider);
     } catch (error) {
       console.error("Login failed", error);
+      alert(`Google sign-in failed: ${error instanceof Error ? error.message : String(error)}`);
     }
   },
 

@@ -1,9 +1,6 @@
-# TODO - Hotel / Residences mode
-
-- [ ] Update `src/components/Onboarding.tsx` to add Building Type selector (Hotel vs Residences).
-- [ ] Extend `src/store.ts` onboarding state with `buildingType`, `residenceName`, and routing behavior for residences.
-- [ ] Update `src/store.ts` guest check-in / check-out logic so **reception is optional** in residences mode.
-- [ ] Update `src/App.tsx` copy (milestone share + header label) to display Residence(s) when in residences mode.
-- [ ] Ensure local/cloud save still works (store payload includes buildingType + residence name/location).
-- [ ] Smoke test: create Hotel -> works unchanged; create Residences without placing reception -> game runs.
-
+- [ ] Add `guestSpawnRatePerSecond` state + setter + local persistence
+- [ ] Update `tickNPCs()` to spawn using guests/sec with fractional accumulator
+- [ ] Switch stay progression from per-second ticks to per-game-hour (`processGuests`)
+- [ ] Assign randomized stay limits in **days** at transition into `in-room`
+- [ ] Remove old `stayDuration > stayLimit` checkout logic (30/45)
+- [ ] Run TypeScript build to verify no TS errors

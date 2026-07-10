@@ -329,6 +329,8 @@ Built and managed with ArchHotel Suite!`;
         </div>
 
         <div className="flex gap-6 text-xs font-semibold uppercase tracking-wider hidden sm:flex">
+
+
           <span
             onClick={() => setAppMode('Design')}
             className={`cursor-pointer transition-colors ${appMode === 'Design' ? 'text-amber-500 border-b-2 border-amber-500 pb-1.5 mt-1' : 'text-slate-400 hover:text-white mt-1'}`}>

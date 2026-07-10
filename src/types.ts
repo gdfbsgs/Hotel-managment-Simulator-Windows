@@ -108,7 +108,16 @@ export interface RoomCategory {
   requiredTiles: TileType[];
   description: string;
   presetTemplateId?: string; // linked layout template id for easy preset applying
+
+  /** Optional structured requirements for residential-style rooms (e.g., 4BR apartments). */
+  requiredBedroomUnits?: number; // e.g., 4 bedroom units
+  minBathrooms?: number;
+  requiresDoorToBedrooms?: boolean;
+
+  /** Heuristic flags for how beds are interpreted for bedroom counting/matching. */
+  bedClusterWallSeparation?: boolean;
 }
+
 
 export interface BonusProgram {
   id: string;

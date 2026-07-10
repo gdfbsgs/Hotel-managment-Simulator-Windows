@@ -8,18 +8,208 @@ export const DEFAULT_ROOM_CATEGORIES_FALLBACK: RoomCategory[] = [
 
 function evaluateFloorRoomCategory(floor: Floor, categories: RoomCategory[]): RoomCategory {
   if (!floor) return categories[0];
+
+  const GRID_H = floor.grid.length;
+  const GRID_W = floor.grid[0]?.length || 0;
+
+  const inBounds = (x: number, y: number) => x >= 0 && y >= 0 && x < GRID_W && y < GRID_H;
+  const gridAt = (x: number, y: number) => floor.grid[y][x];
+
   const tileCounts: Record<string, number> = {};
-  floor.grid.forEach((row) => row.forEach((tile) => {
-    if (tile !== 'empty') tileCounts[tile] = (tileCounts[tile] || 0) + 1;
-  }));
+  floor.grid.forEach((row) =>
+    row.forEach((tile) => {
+      if (tile !== 'empty') tileCounts[tile] = (tileCounts[tile] || 0) + 1;
+    })
+  );
+
+  const countBathrooms = () => tileCounts['bathroom'] || 0;
+
+  const isBed = (x: number, y: number) => gridAt(x, y) === 'bed';
+  const isWall = (x: number, y: number) => gridAt(x, y) === 'wall';
+  const isDoor = (x: number, y: number) => gridAt(x, y) === 'door';
+  const isHallway = (x: number, y: number) => gridAt(x, y) === 'floor';
+
+  const floodFillBeds = () => {
+    const visited = Array.from({ length: GRID_H }, () => Array(GRID_W).fill(false));
+    const comps: Array<Array<{ x: number; y: number }>> = [];
+
+    const dirs = [
+      { dx: -1, dy: 0 },
+      { dx: 1, dy: 0 },
+      { dx: 0, dy: -1 },
+      { dx: 0, dy: 1 },
+    ];
+
+    for (let y = 0; y < GRID_H; y++) {
+      for (let x = 0; x < GRID_W; x++) {
+        if (!isBed(x, y) || visited[y][x]) continue;
+        const comp: Array<{ x: number; y: number }> = [];
+        const queue: Array<{ x: number; y: number }> = [{ x, y }];
+        visited[y][x] = true;
+
+        while (queue.length) {
+          const cur = queue.shift()!;
+          comp.push(cur);
+          for (const { dx, dy } of dirs) {
+            const nx = cur.x + dx;
+            const ny = cur.y + dy;
+            if (!inBounds(nx, ny)) continue;
+            if (visited[ny][nx]) continue;
+            if (!isBed(nx, ny)) continue;
+            visited[ny][nx] = true;
+            queue.push({ x: nx, y: ny });
+          }
+        }
+        comps.push(comp);
+      }
+    }
+
+    return comps;
+  };
+
+  // bedroom unit rule:
+  // - cluster size 1 => 1 bedroom
+  // - cluster size 2 => 1 bedroom (2 adjacent bed tiles = 1 bedroom)
+  // - cluster size > 2 => ceil(size/2)
+  const clusterToBedroomUnits = (clusterSize: number) => {
+    if (clusterSize <= 0) return 0;
+    if (clusterSize === 1) return 1;
+    if (clusterSize === 2) return 1;
+    return Math.ceil(clusterSize / 2);
+  };
+
+  const computeBedInfo = () => {
+    const comps = floodFillBeds();
+    const bedroomUnits = comps.reduce((acc, c) => acc + clusterToBedroomUnits(c.length), 0);
+    return { comps, bedroomUnits, bedClusterCount: comps.length };
+  };
+
+  const requiresDoorToBedroomsOk = () => {
+    const bedInfo = computeBedInfo();
+    if (bedInfo.bedClusterCount === 0) return false;
+
+    let hasDoorAdjacentToBedroom = false;
+    let hasDoorAdjacentToHallway = false;
+
+    for (let y = 0; y < GRID_H; y++) {
+      for (let x = 0; x < GRID_W; x++) {
+        if (!isDoor(x, y)) continue;
+
+        const neighbors = [
+          { nx: x - 1, ny: y },
+          { nx: x + 1, ny: y },
+          { nx: x, ny: y - 1 },
+          { nx: x, ny: y + 1 },
+        ];
+
+        for (const { nx, ny } of neighbors) {
+          if (!inBounds(nx, ny)) continue;
+          if (isBed(nx, ny)) hasDoorAdjacentToBedroom = true;
+          if (isHallway(nx, ny)) hasDoorAdjacentToHallway = true;
+        }
+      }
+    }
+
+    // If any door is adjacent to a hallway, do a simplified reachability check to any bed without crossing walls.
+    const doorAdjacentHallwayTiles: Array<{ x: number; y: number }> = [];
+    for (let y = 0; y < GRID_H; y++) {
+      for (let x = 0; x < GRID_W; x++) {
+        if (!isDoor(x, y)) continue;
+        const neighbors = [
+          { nx: x - 1, ny: y },
+          { nx: x + 1, ny: y },
+          { nx: x, ny: y - 1 },
+          { nx: x, ny: y + 1 },
+        ];
+        for (const { nx, ny } of neighbors) {
+          if (!inBounds(nx, ny)) continue;
+          if (isHallway(nx, ny)) doorAdjacentHallwayTiles.push({ x: nx, y: ny });
+        }
+      }
+    }
+
+    const hasReachableBed = (() => {
+      if (doorAdjacentHallwayTiles.length === 0) return false;
+      const visited = Array.from({ length: GRID_H }, () => Array(GRID_W).fill(false));
+      const queue: Array<{ x: number; y: number }> = [];
+
+      for (const t of doorAdjacentHallwayTiles) {
+        if (!inBounds(t.x, t.y)) continue;
+        visited[t.y][t.x] = true;
+        queue.push({ x: t.x, y: t.y });
+      }
+
+      const dirs = [
+        { dx: -1, dy: 0 },
+        { dx: 1, dy: 0 },
+        { dx: 0, dy: -1 },
+        { dx: 0, dy: 1 },
+      ];
+
+      while (queue.length) {
+        const cur = queue.shift()!;
+        if (isBed(cur.x, cur.y)) return true;
+
+        for (const { dx, dy } of dirs) {
+          const nx = cur.x + dx;
+          const ny = cur.y + dy;
+          if (!inBounds(nx, ny)) continue;
+          if (visited[ny][nx]) continue;
+          if (isWall(nx, ny)) continue;
+          // traverse non-empty walkable areas: hallway tiles + doors + beds (endpoints)
+          const tile = gridAt(nx, ny);
+          if (tile === 'empty' || tile === 'wall') continue;
+          visited[ny][nx] = true;
+          queue.push({ x: nx, y: ny });
+        }
+      }
+
+      return false;
+    })();
+
+    return (hasDoorAdjacentToBedroom && hasDoorAdjacentToHallway) || hasReachableBed;
+  };
+
+  const requiresBedroomWallSeparationOk = () => {
+    const bedInfo = computeBedInfo();
+    if (bedInfo.bedClusterCount === 0) return false;
+    // Heuristic: at least 2 bed clusters separated by walls.
+    return bedInfo.bedClusterCount >= 2;
+  };
+
   let best = categories.find((c) => c.id === 'rc-standard') || categories[0];
   let maxPrice = best?.price || 0;
+
   categories.forEach((cat) => {
-    const met = (cat.requiredTiles || []).every((req) => (tileCounts[req as TileType] || 0) > 0);
-    if (met && cat.price > maxPrice) { best = cat; maxPrice = cat.price; }
+    const metBasicTiles = (cat.requiredTiles || []).every((req) => (tileCounts[req as TileType] || 0) > 0);
+    if (!metBasicTiles) return;
+
+    if (typeof cat.requiredBedroomUnits === 'number') {
+      const bedInfo = computeBedInfo();
+      if (bedInfo.bedroomUnits !== cat.requiredBedroomUnits) return;
+    }
+
+    if (typeof cat.minBathrooms === 'number') {
+      if (countBathrooms() < cat.minBathrooms) return;
+    }
+
+    if (cat.requiresDoorToBedrooms) {
+      if (!requiresDoorToBedroomsOk()) return;
+    }
+
+    if (cat.bedClusterWallSeparation) {
+      if (!requiresBedroomWallSeparationOk()) return;
+    }
+
+    if (cat.price > maxPrice) {
+      best = cat;
+      maxPrice = cat.price;
+    }
   });
+
   return best;
 }
+
 
 export interface HotelMarket {
   id: string;
@@ -221,7 +411,8 @@ export function getGuestSpawnChance(params: {
   if (params.capacity <= 0 || params.currentGuests >= params.capacity) return 0;
 
   const occupancyHeadroom = 1 - params.currentGuests / params.capacity;
-  let phaseMultiplier = 0.04;
+  // Increased overall spawn pressure; keeps cap-based balancing in getGuestSpawnChance usage.
+  let phaseMultiplier = 0.06;
 
   switch (params.phase) {
     case 'checkin-rush':
