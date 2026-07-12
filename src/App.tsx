@@ -166,35 +166,34 @@ function AppInner() {
     const unsub = onAuthStateChanged(auth, async (u) => {
       setUser(u);
       if (u) {
-        await loadFromCloud(u.uid);
+        await useHotelStore.getState().loadFromCloud(u.uid);
       } else {
-        const loaded = loadFromLocal();
+        const loaded = useHotelStore.getState().loadFromLocal();
         setSaveStatus(loaded ? 'saved' : 'idle');
         if (!loaded) {
-          // trigger onboarding when no local save exists
           useHotelStore.getState().startOnboarding();
         }
       }
     });
     return unsub;
-  }, [loadFromCloud, loadFromLocal]);
+  }, [setUser, setSaveStatus]);
 
   useEffect(() => {
     if (user) return;
 
     const autoSave = setInterval(() => {
       setSaveStatus('saving');
-      saveToLocal();
+      useHotelStore.getState().saveToLocal();
       setSaveStatus('saved');
     }, 30000);
 
     return () => clearInterval(autoSave);
-  }, [user, saveToLocal]);
+  }, [user, setSaveStatus]);
 
   useEffect(() => {
     const handleAutoSave = () => {
       if (!user) {
-        if (saveToLocal()) {
+        if (useHotelStore.getState().saveToLocal()) {
           setSaveStatus('saved');
         }
       }
@@ -213,7 +212,7 @@ function AppInner() {
       window.removeEventListener('beforeunload', handleAutoSave);
       window.removeEventListener('visibilitychange', handleVisibilityChange);
     };
-  }, [user, saveToLocal]);
+  }, [user, setSaveStatus]);
 
   useEffect(() => {
     // Process guests and earn money every 5 seconds
