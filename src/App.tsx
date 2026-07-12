@@ -132,7 +132,10 @@ function AppInner() {
     hotels,
     activeHotelId,
     activeHotelBrandId,
-    customBrands
+    customBrands,
+    gameDay,
+    gameHour,
+    gameSpeed
   } = useHotelStore();
 
   const starRating = React.useMemo(() => {
@@ -349,6 +352,11 @@ Built and managed with ArchHotel Suite!`;
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
+          <div className="hidden sm:flex items-center gap-2 rounded-full border border-slate-800 bg-slate-950/85 px-3 py-1 text-[10px] uppercase tracking-[0.18em] text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            D{gameDay} {String(gameHour).padStart(2, '0')}:00
+            <span className="text-[9px] text-slate-500">({gameSpeed}x)</span>
+          </div>
           <AnimatedMoney money={money} />
           {appMode === 'Design' && (
             <div className="flex items-center gap-1 p-0.5 bg-slate-950 rounded-lg border border-slate-800 shadow-inner scale-90 sm:scale-100">
