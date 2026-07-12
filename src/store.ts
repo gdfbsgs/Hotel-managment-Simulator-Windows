@@ -424,6 +424,13 @@ interface HotelStore {
   guestLedger: GuestLedgerEntry[];
   gameSpeed: number;
 
+  createRoomCategory: (cat: RoomCategory) => void;
+  updateRoomCategoryPrice: (id: string, price: number) => void;
+  deleteRoomCategory: (id: string) => void;
+  createBonusProgram: (program: BonusProgram) => void;
+  activateBonusProgram: (id: string) => void;
+  deleteBonusProgram: (id: string) => void;
+
   setInflationRate: (rate: number) => void;
   setPropertyAppreciationRate: (rate: number) => void;
   setViewportSync: (sync: Partial<ViewportSync>) => void;
