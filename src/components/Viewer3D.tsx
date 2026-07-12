@@ -432,12 +432,12 @@ const FpsControls: React.FC<FpsControlsProps> = ({
     pitch.current = -0.05;
     camera.rotation.order = 'YXZ';
     camera.rotation.set(pitch.current, yaw.current, 0);
-  }, [camera, activeFloorIndex, floors, mode]);
+  }, [activeFloorIndex, floors, mode]);
 
   useEffect(() => {
     if (floorTransitionRef.current.active) return;
     camera.position.y = activeFloorIndex * WALL_HEIGHT + 1.7;
-  }, [activeFloorIndex, camera, floorTransitionRef]);
+  }, [activeFloorIndex, floorTransitionRef]);
 
   useEffect(() => {
     if (!setViewportSync) return;
@@ -447,7 +447,7 @@ const FpsControls: React.FC<FpsControlsProps> = ({
         activeFloorIndex,
       });
     }
-  }, [mode, camera, activeFloorIndex, setViewportSync]);
+  }, [mode, activeFloorIndex, setViewportSync]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
