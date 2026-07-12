@@ -94,6 +94,7 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './firebase';
 import { motion, AnimatePresence } from 'motion/react';
 import Onboarding from './components/Onboarding';
+import { PerformanceProfile } from './components/PerformanceProfile';
 
 export default function App() {
   return (
@@ -459,6 +460,7 @@ Built and managed with ArchHotel Suite!`;
         )}
         {appMode === 'Management' && <Management />}
         {appMode === 'Analytics' && <Analytics />}
+        <PerformanceProfile />
       </div>
       
       {/* Mobile Bottom Navigation Bar (Visible only on screens < sm) */}

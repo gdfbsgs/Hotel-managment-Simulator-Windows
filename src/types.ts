@@ -1,10 +1,11 @@
-export type TileType = 'empty' | 'floor' | 'wall' | 'door' | 'window' | 'bed' | 'reception' | 'plant' | 'table' | 'elevator' | 'bathroom' | 'staff' | 'stairs';
+export type TileType = 'empty' | 'floor' | 'wall' | 'door' | 'window' | 'bed' | 'reception' | 'plant' | 'table' | 'elevator' | 'bathroom' | 'staff' | 'stairs' | 'buffet' | 'restaurant' | 'pool' | 'arcade' | 'spa_tile' | 'power_plant' | 'pipe';
 
 export interface Label {
   id: string;
   x: number;
   y: number;
   text: string;
+  meta?: Record<string, any>;
 }
 
 export interface Floor {
@@ -39,6 +40,8 @@ export interface Milestone {
 export type ViewMode = '2D' | '3D' | 'Walk';
 export type AppMode = 'Design' | 'Management' | 'Analytics' | 'Chain';
 
+export type StaffShift = 'morning' | 'evening' | 'night';
+
 export type StaffTask = 'Idle' | 'Clean Room' | 'Maintain Elevator' | 'Check-in Guests' | 'Patrol' | 'Service VIP';
 
 export interface StaffNPC {
@@ -47,18 +50,25 @@ export interface StaffNPC {
   role: 'receptionist' | 'cleaner' | 'manager';
   salary: number;
   currentTask?: StaffTask;
+  shift?: StaffShift;
+  shiftSchedule?: StaffShift[];
 }
+
+export type GuestSpendingPattern = 'budget' | 'standard' | 'luxury';
 
 export type GuestState = 'wandering' | 'checking-in' | 'going-to-elevator' | 'going-to-room' | 'in-room' | 'checking-out' | 'going-to-elevator-checkout' | 'leaving';
 
 export interface GuestNPC {
   id: string;
   name: string;
+  nationality?: string;
   roomAssigned?: string;
   stayDuration: number;
+  stayLimitDays?: number;
   spent: number;
   state: GuestState;
   need?: 'hungry' | 'tired' | 'none';
+  spendingPattern?: GuestSpendingPattern;
   x: number;
   y: number;
   targetX?: number;
@@ -80,6 +90,8 @@ export interface GuestNPC {
   };
   roomCategoryId?: string;
   enrolledInBonusProgram?: boolean;
+  checkedOutAt?: string;
+  revenueGenerated?: number;
 }
 
 export interface RoomRates {
@@ -168,6 +180,7 @@ export interface OperationsReport {
   compSetAdr: number;
   arrivalsToday: number;
   departuresToday: number;
+  inflationRate?: number;
 }
 
 export interface HotelData {
@@ -187,6 +200,24 @@ export interface HotelData {
   marketId?: string;
   marketingBudget?: number;
   operationsReport?: OperationsReport | null;
+  propertyAppreciationRate?: number;
+}
+
+export interface GuestLedgerEntry {
+  id: string;
+  guestId: string;
+  guestName: string;
+  nationality: string;
+  isVip: boolean;
+  roomCategoryId: string;
+  floorIndex: number;
+  checkInDay: number;
+  checkInHour: number;
+  checkOutDay: number;
+  checkOutHour: number;
+  revenueGenerated: number;
+  satisfaction: number;
+  finalSatisfaction: number;
 }
 
 export interface HotelChain {
@@ -230,5 +261,23 @@ export interface ScenerySpec {
   items: SceneryItem[];
   generatedAt: string;
   source: 'google-places' | 'fallback';
+}
+
+export interface ViewportSync {
+  panOffset: { x: number; y: number };
+  zoom: number;
+  cameraTarget: { x: number; y: number; z?: number } | null;
+  activeFloorIndex: number;
+}
+
+export interface SupplyChain {
+  inventory: Record<string, number>;
+  procurementCosts: Record<string, number>;
+}
+
+export interface EmergencyState {
+  pipeLeak: boolean;
+  powerOutage: boolean;
+  activeEmergencyFloor: number | null;
 }
 

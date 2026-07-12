@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Floor, TileType, ViewMode, Label, AppMode, StaffNPC, GuestNPC, HotelData, StaffTask, RoomRates, GuestState, FloorTemplate, Milestone, Brand, HotelChain, RoomCategory, BonusProgram, OperationsReport } from './types';
+import { Floor, TileType, ViewMode, Label, AppMode, StaffNPC, GuestNPC, HotelData, StaffTask, RoomRates, GuestState, FloorTemplate, Milestone, Brand, HotelChain, RoomCategory, BonusProgram, OperationsReport, ViewportSync, SupplyChain, EmergencyState, GuestSpendingPattern, StaffShift, GuestLedgerEntry } from './types';
 import { PRESETS } from './presets';
 import { DEFAULT_BRANDS, DEFAULT_ROOM_CATEGORIES, HOTEL_CHAINS } from './db';
 import { auth, db } from './firebase';
@@ -44,6 +44,7 @@ const syncActiveHotelHelper = (state: any) => {
         marketId: state.marketId,
         marketingBudget: state.marketingBudget,
         operationsReport: state.operationsReport,
+        propertyAppreciationRate: state.propertyAppreciationRate,
       };
     }
     return h;
@@ -270,6 +271,14 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
       gameHour: (data.gameHour as number) || 8,
       operationsHistory: (data.operationsHistory as OperationsReport[]) || [],
       activeFloorIndex: 0,
+      inflationRate: (data.inflationRate as number) || 0.02,
+      propertyAppreciationRate: (data.propertyAppreciationRate as number) || 0.005,
+      viewportSync: (data.viewportSync as ViewportSync) || { panOffset: { x: 0, y: 0 }, zoom: 1, cameraTarget: null, activeFloorIndex: 0 },
+      supplyChain: (data.supplyChain as SupplyChain) || { inventory: { food: 1000, energy: 500, linen: 300, amenities: 200 }, procurementCosts: { food: 0.05, energy: 0.10, linen: 0.02, amenities: 0.03 } },
+      emergency: (data.emergency as EmergencyState) || { pipeLeak: false, powerOutage: false, activeEmergencyFloor: null },
+      guestSpawnRatePerSecond: (data.guestSpawnRatePerSecond as number) || 0.4,
+      gameSpeed: (data.gameSpeed as number) || 1,
+      guestLedger: (data.guestLedger as GuestLedgerEntry[]) || [],
     });
     return true;
   }
@@ -382,6 +391,8 @@ interface HotelStore {
     chainId: string | null;
     brandId: string | null;
     hotelName: string | null;
+    residenceName: string | null;
+    buildingType: 'hotel' | 'residences' | null;
     location: { lat: number; lng: number; address?: string } | null;
   };
   startOnboarding: () => void;
@@ -403,12 +414,28 @@ interface HotelStore {
   roomCategories: RoomCategory[];
   bonusPrograms: BonusProgram[];
   activeBonusProgramId: string | null;
-  createRoomCategory: (cat: RoomCategory) => void;
-  updateRoomCategoryPrice: (id: string, price: number) => void;
-  deleteRoomCategory: (id: string) => void;
-  createBonusProgram: (program: BonusProgram) => void;
-  activateBonusProgram: (id: string | null) => void;
-  deleteBonusProgram: (id: string) => void;
+  inflationRate: number;
+  propertyAppreciationRate: number;
+  viewportSync: ViewportSync;
+  supplyChain: SupplyChain;
+  emergency: EmergencyState;
+  guestSpawnRatePerSecond: number;
+  guestSpawnAccumulator: number;
+  guestLedger: GuestLedgerEntry[];
+  gameSpeed: number;
+
+  setInflationRate: (rate: number) => void;
+  setPropertyAppreciationRate: (rate: number) => void;
+  setViewportSync: (sync: Partial<ViewportSync>) => void;
+  updateSupply: (key: string, delta: number) => void;
+  setEmergency: (emergency: Partial<EmergencyState>) => void;
+  consumeSupply: (key: string, amount: number) => void;
+  setGuestSpawnRatePerSecond: (rate: number) => void;
+  setGameSpeed: (speed: number) => void;
+  renameFloor: (floorIndex: number, name: string) => void;
+  duplicateFloor: (floorIndex: number) => void;
+  getFireSafetyRating: () => number;
+  setRoomCategories: (categories: RoomCategory[]) => void;
 }
 
 export const useHotelStore = create<HotelStore>((set, get) => ({
@@ -442,11 +469,13 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     chainId: null,
     brandId: null,
     hotelName: null,
+    residenceName: null,
+    buildingType: null,
     location: null
   },
-  startOnboarding: () => set({ needsOnboarding: true, onboarding: { step: 1, chainId: null, brandId: null, hotelName: null, location: null } }),
+  startOnboarding: () => set({ needsOnboarding: true, onboarding: { step: 1, chainId: null, brandId: null, hotelName: null, residenceName: null, buildingType: null, location: null } }),
   setOnboardingField: (field, value) => set((state: any) => ({ onboarding: { ...state.onboarding, [field]: value } })),
-  completeOnboarding: () => set({ needsOnboarding: false, onboarding: { step: 0, chainId: null, brandId: null, hotelName: null, location: null } }),
+  completeOnboarding: () => set({ needsOnboarding: false, onboarding: { step: 0, chainId: null, brandId: null, hotelName: null, residenceName: null, buildingType: null, location: null } }),
 
   chainName: 'Marriott & Radisson Hospitality Group',
   hotels: [
@@ -469,6 +498,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       milestones: getInitialMilestones(),
       marketId: 'urban-business',
       marketingBudget: 75,
+      propertyAppreciationRate: 0.005,
     },
     {
       id: 'h-2',
@@ -500,6 +530,29 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   marketingBudget: 75,
   operationsReport: null,
   operationsHistory: [],
+  inflationRate: 0.02,
+  propertyAppreciationRate: 0.005,
+  viewportSync: {
+    panOffset: { x: 0, y: 0 },
+    zoom: 1,
+    cameraTarget: null,
+    activeFloorIndex: 0,
+  },
+  supplyChain: {
+    inventory: { food: 1000, energy: 500, linen: 300, amenities: 200 },
+    procurementCosts: { food: 0.05, energy: 0.10, linen: 0.02, amenities: 0.03 },
+  },
+  emergency: {
+    pipeLeak: false,
+    powerOutage: false,
+    activeEmergencyFloor: null,
+  },
+  guestSpawnRatePerSecond: (() => {
+    try { const v = localStorage.getItem('archhotel_guest_spawn_rate'); return v ? parseFloat(v) : 0.4; } catch { return 0.4; }
+  })(),
+  guestSpawnAccumulator: 0,
+  guestLedger: [],
+  gameSpeed: 1,
 
   setChainName: (name) => set({ chainName: name }),
 
@@ -729,6 +782,14 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         viewMode: state.viewMode,
         appMode: state.appMode,
         selectedTool: state.selectedTool,
+        inflationRate: state.inflationRate,
+        propertyAppreciationRate: state.propertyAppreciationRate,
+        viewportSync: state.viewportSync,
+        supplyChain: state.supplyChain,
+        emergency: state.emergency,
+        guestSpawnRatePerSecond: state.guestSpawnRatePerSecond,
+        gameSpeed: state.gameSpeed,
+        guestLedger: state.guestLedger,
         saveVersion: 1,
         savedAt: new Date().toISOString(),
       };
@@ -756,7 +817,15 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
           activeFloorIndex: (data.activeFloorIndex as number) ?? 0,
           viewMode: (data.viewMode as ViewMode) || '2D',
           appMode: (data.appMode as AppMode) || 'Design',
-          selectedTool: (data.selectedTool as TileType | 'eraser' | 'text') || 'floor'
+          selectedTool: (data.selectedTool as TileType | 'eraser' | 'text') || 'floor',
+          inflationRate: (data.inflationRate as number) || 0.02,
+          propertyAppreciationRate: (data.propertyAppreciationRate as number) || 0.005,
+          viewportSync: (data.viewportSync as ViewportSync) || { panOffset: { x: 0, y: 0 }, zoom: 1, cameraTarget: null, activeFloorIndex: 0 },
+          supplyChain: (data.supplyChain as SupplyChain) || { inventory: { food: 1000, energy: 500, linen: 300, amenities: 200 }, procurementCosts: { food: 0.05, energy: 0.10, linen: 0.02, amenities: 0.03 } },
+          emergency: (data.emergency as EmergencyState) || { pipeLeak: false, powerOutage: false, activeEmergencyFloor: null },
+          guestSpawnRatePerSecond: (data.guestSpawnRatePerSecond as number) || 0.4,
+          gameSpeed: (data.gameSpeed as number) || 1,
+          guestLedger: (data.guestLedger as GuestLedgerEntry[]) || [],
         });
       }
       return loaded;
@@ -831,12 +900,30 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       ? (state.bonusPrograms || DEFAULT_BONUS_PROGRAMS).find(p => p.id === state.activeBonusProgramId)
       : null;
 
-    let gameHour = state.gameHour + 1;
+    let gameHour = state.gameHour + state.gameSpeed;
     let gameDay = state.gameDay;
+    let inflationRate = state.inflationRate;
+    let propertyAppreciationRate = state.propertyAppreciationRate;
     if (gameHour >= 24) {
       gameHour = 0;
       gameDay += 1;
+      inflationRate = Math.min(0.5, state.inflationRate + 0.0005);
+      propertyAppreciationRate = Math.min(0.1, state.propertyAppreciationRate + 0.0001);
     }
+
+    const currentRoomRates = { ...state.roomRates };
+    if (gameDay > state.gameDay) {
+      currentRoomRates.standard = Math.round(currentRoomRates.standard * (1 + propertyAppreciationRate));
+      currentRoomRates.suite = Math.round(currentRoomRates.suite * (1 + propertyAppreciationRate));
+    }
+
+    const newEmergency = {
+      pipeLeak: Math.random() < 0.005 ? !state.emergency.pipeLeak : state.emergency.pipeLeak,
+      powerOutage: Math.random() < 0.003 ? !state.emergency.powerOutage : state.emergency.powerOutage,
+      activeEmergencyFloor: state.emergency.pipeLeak || state.emergency.powerOutage
+        ? state.emergency.activeEmergencyFloor ?? (Math.random() < 0.5 ? Math.floor(Math.random() * state.floors.length) : null)
+        : null,
+    };
 
     const report = buildOperationsReport({
       floors: state.floors,
@@ -852,16 +939,26 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       bonusPrivileges: activeProgram?.privileges || [],
       totalGuestsServed: state.totalGuestsServed,
       previousReport: state.operationsReport,
+      inflationRate,
     });
 
-    let expenses = report.expenses.total;
-    if (activeProgram?.privileges.includes('staffLoungePlus')) {
-      expenses = Math.round(expenses - report.expenses.staffPayroll * 0.15);
-    }
+    const energyUsage = report.expenses.utilities;
+    const inflationMultiplier = 1 + inflationRate;
+    const adjustedExpenses = Math.round(report.expenses.total * inflationMultiplier + energyUsage * 0.5);
+    const expenses = activeProgram?.privileges.includes('staffLoungePlus')
+      ? Math.round(adjustedExpenses - report.expenses.staffPayroll * 0.15)
+      : adjustedExpenses;
 
     const netIncome = report.revenue - expenses;
     const newMoney = state.money + netIncome;
-    const operationsHistory = [...state.operationsHistory, report].slice(-24);
+    const operationsHistory = [...state.operationsHistory, { ...report, expenses: { ...report.expenses, total: expenses }, inflationRate }].slice(-24);
+
+    const newSupplyChain = { ...state.supplyChain };
+    newSupplyChain.inventory = { ...newSupplyChain.inventory };
+    if (gameDay > state.gameDay) {
+      newSupplyChain.inventory.food = Math.max(0, (newSupplyChain.inventory.food || 0) - 10);
+      newSupplyChain.inventory.energy = Math.max(0, (newSupplyChain.inventory.energy || 0) - 5);
+    }
 
     setTimeout(() => checkMilestones(useHotelStore.getState(), set), 0);
     const synced = syncActiveHotelHelper({
@@ -869,16 +966,26 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       money: newMoney,
       gameDay,
       gameHour,
-      operationsReport: report,
+      operationsReport: { ...report, expenses: { ...report.expenses, total: expenses } },
       operationsHistory,
+      inflationRate,
+      propertyAppreciationRate,
+      roomRates: currentRoomRates,
+      supplyChain: newSupplyChain,
+      emergency: newEmergency,
     });
 
     return {
       money: newMoney,
       gameDay,
       gameHour,
-      operationsReport: report,
+      inflationRate,
+      propertyAppreciationRate,
+      roomRates: currentRoomRates,
+      operationsReport: { ...report, expenses: { ...report.expenses, total: expenses } },
       operationsHistory,
+      supplyChain: newSupplyChain,
+      emergency: newEmergency,
       hotels: synced,
     };
   }),
@@ -901,8 +1008,10 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       marketingBudget: state.marketingBudget,
       satisfaction: state.operationsReport?.avgSatisfaction || 75,
       occupancyRate,
+      hotelAdr: state.roomRates?.standard || 50,
     });
     const phase = getDayPhase(state.gameHour);
+
     const spawnChance = getGuestSpawnChance({
       demandScore,
       phase,
@@ -910,7 +1019,11 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       capacity,
     });
 
-    if (newGuests.length < capacity && Math.random() < spawnChance) {
+    let spawnAcc = state.guestSpawnAccumulator + state.guestSpawnRatePerSecond * state.gameSpeed * 0.05;
+    let spawned = 0;
+    while (spawnAcc >= 1.0 && newGuests.length < capacity && spawned < 3) {
+      spawnAcc -= 1.0;
+      spawned++;
       // Find reception and main entrance
       let receptionX = 10, receptionY = 10, receptionFloor = 0;
       let foundReception = false;
@@ -935,7 +1048,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         outerLoop: for (let y = 0; y < GRID_SIZE; y++) {
           for (let x = 0; x < GRID_SIZE; x++) {
             const isBoundary = x === 0 || y === 0 || x === GRID_SIZE - 1 || y === GRID_SIZE - 1;
-            if (isBoundary && lobbyFloor.grid[y][x] === 'D') {
+            if (isBoundary && lobbyFloor.grid[y][x] === 'door') {
               entranceX = x;
               entranceY = y;
               break outerLoop;
@@ -944,6 +1057,13 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         }
       }
       
+      const NATIONALITIES = [
+        'USA', 'UK', 'France', 'Germany', 'Japan', 'China', 'Brazil', 'Australia',
+        'Canada', 'Italy', 'Spain', 'UAE', 'India', 'Mexico', 'South Korea', 'Netherlands',
+        'Sweden', 'Singapore', 'Switzerland', 'UAE', 'South Africa', 'Argentina', 'Thailand', 'Norway'
+      ];
+      const nationality = NATIONALITIES[Math.floor(Math.random() * NATIONALITIES.length)];
+
       const isVip = Math.random() < activeBrand.vipSpawnRate;
       const name = isVip
         ? `${VIP_NAMES[Math.floor(Math.random() * VIP_NAMES.length)]} 👑`
@@ -959,6 +1079,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       newGuests.push({
         id: Math.random().toString(36).substr(2, 9),
         name,
+        nationality,
         stayDuration: 0,
         spent: 0,
         state: 'checking-in',
@@ -976,7 +1097,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
 
     newGuests = newGuests.map(guest => {
       const g = { ...guest };
-      g.stayDuration++;
+      g.stayDuration += state.gameSpeed;
 
       // Handle VIP satisfaction updates
       if (g.isVip) {
@@ -1004,7 +1125,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
             if (tile === 'plant') hasPlant = true;
             if (tile === 'table') hasTable = true;
             if (tile === 'reception') hasReception = true;
-            if (tile === 'W') hasWindowView = true;
+            if (tile === 'window') hasWindowView = true;
           }));
 
           if (g.vipNeed === 'spa' && hasBathroom) {
@@ -1068,7 +1189,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
             if (tile === 'bathroom') hasBathroom = true;
             if (tile === 'plant') hasPlant = true;
             if (tile === 'table') hasTable = true;
-            if (tile === 'W') hasWindowView = true;
+            if (tile === 'window') hasWindowView = true;
           }));
 
           if (hasBathroom) {
@@ -1335,6 +1456,8 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
           } else if (g.state === 'going-to-room') {
             g.state = 'in-room';
             g.targetX = undefined; g.targetY = undefined;
+            const stayDays = Math.floor(Math.random() * 5) + 2;
+            g.stayLimitDays = stayDays;
           } else if (g.state === 'going-to-elevator-checkout') {
             // Reached elevator on checkout! Move to lobby floor (usually level 0) at the elevator position
             g.floorIndex = g.finalFloorIndex !== undefined ? g.finalFloorIndex : 0;
@@ -1358,10 +1481,9 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         const activeProgram = state.activeBonusProgramId 
           ? (state.bonusPrograms || DEFAULT_BONUS_PROGRAMS).find(p => p.id === state.activeBonusProgramId)
           : null;
-        const hasLateCheckout = activeProgram?.privileges.includes('lateCheckout') && g.enrolledInBonusProgram;
-        const stayLimit = hasLateCheckout ? 45 : 30;
+        const stayLimitHours = (g.stayLimitDays || 3) * 24;
 
-        if (g.stayDuration > stayLimit) {
+        if (g.stayDuration >= stayLimitHours) {
           // Find reception
           let receptionX = 10, receptionY = 10, receptionFloor = 0;
           for (let f = 0; f < state.floors.length; f++) {
@@ -1410,14 +1532,46 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
             }
           }
           
-          // VIP Guest checkout reward!
+          // VIP Guest checkout reward - based on stay length and satisfaction!
           if (g.isVip) {
-            let payout = 1200 + (g.vipSatisfaction || 50) * 18;
+            const stayHours = g.stayLimitDays ? g.stayLimitDays * 24 : 72;
+            const daysStayed = Math.max(1, Math.round(g.stayDuration / 24));
+            const baseDailyRate = 150;
+            let payout = baseDailyRate * daysStayed + (g.vipSatisfaction || 50) * 25;
             if (activeProgram?.privileges.includes('vipWelcomeGift') && g.enrolledInBonusProgram) {
               payout = Math.round(payout * 1.35);
             }
             extraMoney += Math.floor(payout * activeBrand.vipMultiplier);
+            g.revenueGenerated = Math.floor(payout * activeBrand.vipMultiplier);
+          } else {
+            const cats = state.roomCategories || DEFAULT_ROOM_CATEGORIES;
+            const cat = g.roomCategoryId ? cats.find(c => c.id === g.roomCategoryId) : cats[0];
+            const dailyRate = cat?.price || 50;
+            const daysStayed = Math.max(1, Math.round(g.stayDuration / 24));
+            const satBonus = ((g.satisfaction || 75) / 100) * 0.3;
+            const payout = Math.round(dailyRate * daysStayed * (1 + satBonus));
+            extraMoney += payout;
+            g.revenueGenerated = payout;
           }
+          
+          // Record guest ledger entry
+          const ledgerEntry: GuestLedgerEntry = {
+            id: `ledger-${g.id}-${Date.now()}`,
+            guestId: g.id,
+            guestName: g.name,
+            nationality: g.nationality || 'Unknown',
+            isVip: !!g.isVip,
+            roomCategoryId: g.roomCategoryId || 'rc-standard',
+            floorIndex: g.floorIndex,
+            checkInDay: state.gameDay - Math.max(1, Math.round(g.stayDuration / 24)),
+            checkInHour: state.gameHour,
+            checkOutDay: state.gameDay,
+            checkOutHour: state.gameHour,
+            revenueGenerated: g.revenueGenerated || 0,
+            satisfaction: g.satisfaction || 75,
+            finalSatisfaction: g.isVip ? (g.vipSatisfaction || 50) : (g.satisfaction || 75),
+          };
+          state.guestLedger = [ledgerEntry, ...state.guestLedger].slice(0, 200);
           
           // Release assigned staff from VIP task once VIP checked out
           if (g.vipAssignedStaff) {
@@ -1487,7 +1641,8 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         if (!rotKey) {
           // no-op
         }
-        if (tool === 'eraser' || tool === 'empty' || tool === 'floor' || tool === 'wall' || tool === 'door' || tool === 'window' || tool === 'elevator' || tool === 'stairs') {
+        const ROTATABLE: TileType[] = ['bed', 'table', 'reception', 'plant', 'bathroom', 'staff', 'elevator', 'stairs', 'buffet', 'restaurant', 'pool', 'arcade', 'spa_tile', 'power_plant', 'pipe'];
+      if (tool === 'eraser' || tool === 'empty' || !ROTATABLE.includes(tool)) {
           delete rotations[rotKey];
         }
       }
@@ -1555,8 +1710,22 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     };
   }),
 
-  setActiveFloor: (index) => set({ activeFloorIndex: index }),
-  setViewMode: (mode) => set({ viewMode: mode }),
+  setActiveFloor: (index) => set((state) => {
+    const prevSync = state.viewportSync;
+    const newSync = { ...prevSync, activeFloorIndex: index };
+    return { activeFloorIndex: index, viewportSync: newSync };
+  }),
+  setViewMode: (mode) => set((state) => {
+    const prev = state.viewMode;
+    const newSync = { ...state.viewportSync };
+    if (prev === '2D' && mode !== '2D') {
+      newSync.cameraTarget = null;
+    } else if (prev !== '2D' && mode === '2D') {
+      newSync.panOffset = { x: 0, y: 0 };
+      newSync.zoom = 1;
+    }
+    return { viewMode: mode, viewportSync: newSync };
+  }),
   setAppMode: (mode) => set({ appMode: mode }),
   setSelectedTool: (tool) => set({ selectedTool: tool }),
 
@@ -1564,7 +1733,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     if (PRESETS[presetId]) {
       const floors = JSON.parse(JSON.stringify(PRESETS[presetId]));
       const synced = syncActiveHotelHelper({ ...state, floors, activeFloorIndex: 0 });
-      return { floors, activeFloorIndex: 0, appMode: 'Design', viewMode: '2D', hotels: synced };
+      return { floors, activeFloorIndex: 0, appMode: 'Design', viewMode: '2D', hotels: synced, guestSpawnAccumulator: 0, gameSpeed: 1 };
     }
     return state;
   }),
@@ -1629,7 +1798,11 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       activeBonusProgramId: null,
       totalGuestsServed: 0,
       milestones: getInitialMilestones(),
-      activeMilestoneNotification: null
+      activeMilestoneNotification: null,
+      guestSpawnRatePerSecond: 0.4,
+      guestSpawnAccumulator: 0,
+      gameSpeed: 1,
+      guestLedger: [],
     };
   }),
 
@@ -1711,6 +1884,11 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     return { roomCategories: cats, hotels: synced };
   }),
 
+  setRoomCategories: (categories) => set((state) => {
+    const synced = syncActiveHotelHelper({ ...state, roomCategories: categories });
+    return { roomCategories: categories, hotels: synced };
+  }),
+
   createBonusProgram: (program) => set((state) => {
     const programs = [...(state.bonusPrograms || DEFAULT_BONUS_PROGRAMS), program];
     const synced = syncActiveHotelHelper({ ...state, bonusPrograms: programs });
@@ -1748,10 +1926,130 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     };
   }),
 
+  setInflationRate: (rate) => set({ inflationRate: Math.max(0, Math.min(rate, 0.5)) }),
+
+  setPropertyAppreciationRate: (rate) => set({ propertyAppreciationRate: Math.max(0, Math.min(rate, 0.1)) }),
+
+  setViewportSync: (sync) => set((state) => ({
+    viewportSync: { ...state.viewportSync, ...sync }
+  })),
+
+  updateSupply: (key, delta) => set((state) => {
+    const inventory = { ...state.supplyChain.inventory };
+    inventory[key] = Math.max(0, (inventory[key] || 0) + delta);
+    return {
+      supplyChain: {
+        ...state.supplyChain,
+        inventory,
+      }
+    };
+  }),
+
+  setEmergency: (emergency) => set((state) => ({
+    emergency: { ...state.emergency, ...emergency }
+  })),
+
+  consumeSupply: (key, amount) => set((state) => {
+    const inventory = { ...state.supplyChain.inventory };
+    const current = inventory[key] || 0;
+    inventory[key] = Math.max(0, current - amount);
+    return {
+      supplyChain: {
+        ...state.supplyChain,
+        inventory,
+      }
+    };
+  }),
+
   deleteBonusProgram: (id) => set((state) => {
     const programs = (state.bonusPrograms || DEFAULT_BONUS_PROGRAMS).filter(p => p.id !== id);
     const nextActiveId = state.activeBonusProgramId === id ? null : state.activeBonusProgramId;
     const synced = syncActiveHotelHelper({ ...state, bonusPrograms: programs, activeBonusProgramId: nextActiveId });
     return { bonusPrograms: programs, activeBonusProgramId: nextActiveId, hotels: synced };
-  })
+  }),
+
+  setGuestSpawnRatePerSecond: (rate) => {
+    const clamped = Math.max(0.05, Math.min(rate, 3.0));
+    set({ guestSpawnRatePerSecond: clamped });
+    try { localStorage.setItem('archhotel_guest_spawn_rate', String(clamped)); } catch (e) {}
+  },
+
+  setGameSpeed: (speed) => {
+    const clamped = Math.max(1, Math.min(speed, 5));
+    set({ gameSpeed: clamped });
+  },
+
+  renameFloor: (floorIndex, name) => set((state) => {
+    const newFloors = [...state.floors];
+    if (!newFloors[floorIndex]) return state;
+    newFloors[floorIndex] = { ...newFloors[floorIndex], name };
+    const synced = syncActiveHotelHelper({ ...state, floors: newFloors });
+    return { floors: newFloors, hotels: synced };
+  }),
+
+  duplicateFloor: (floorIndex) => set((state) => {
+    const source = state.floors[floorIndex];
+    if (!source) return state;
+    const newFloor: Floor = {
+      level: state.floors.length,
+      name: `${source.name || `Level ${source.level}`} (Copy)`,
+      grid: JSON.parse(JSON.stringify(source.grid)),
+      labels: JSON.parse(JSON.stringify(source.labels || [])),
+      rotations: source.rotations ? { ...source.rotations } : undefined,
+    };
+    const nextFloors = [...state.floors, newFloor];
+    const synced = syncActiveHotelHelper({ ...state, floors: nextFloors });
+    return { floors: nextFloors, activeFloorIndex: nextFloors.length - 1, hotels: synced };
+  }),
+
+  getFireSafetyRating: () => {
+    const state = get();
+    const floors = state.floors;
+    let totalScore = 0;
+    let maxScore = 0;
+
+    floors.forEach((floor, fi) => {
+      let floorScore = 0;
+      const grid = floor.grid;
+      const hasReception = false;
+      const exits: { x: number; y: number }[] = [];
+      const elevators: { x: number; y: number }[] = [];
+      const stairs: { x: number; y: number }[] = [];
+      let bedCount = 0;
+      let bathroomCount = 0;
+
+      for (let y = 0; y < GRID_SIZE; y++) {
+        for (let x = 0; x < GRID_SIZE; x++) {
+          const tile = grid[y]?.[x];
+          if (tile === 'door') exits.push({ x, y });
+          if (tile === 'elevator') elevators.push({ x, y });
+          if (tile === 'stairs') stairs.push({ x, y });
+          if (tile === 'bed') bedCount++;
+          if (tile === 'bathroom') bathroomCount++;
+        }
+      }
+
+      const hasEmergencyExit = exits.length > 0;
+      const hasElevator = elevators.length > 0;
+      const hasStairs = stairs.length > 0;
+      const hasBathrooms = bathroomCount >= Math.max(1, Math.ceil(bedCount / 4));
+      const perimeterWalls = (() => {
+        let wallCount = 0;
+        for (let x = 0; x < GRID_SIZE; x++) { if (grid[0]?.[x] === 'wall') wallCount++; if (grid[GRID_SIZE - 1]?.[x] === 'wall') wallCount++; }
+        for (let y = 0; y < GRID_SIZE; y++) { if (grid[y]?.[0] === 'wall') wallCount++; if (grid[y]?.[GRID_SIZE - 1] === 'wall') wallCount++; }
+        return wallCount;
+      })();
+
+      floorScore += hasEmergencyExit ? 25 : 0;
+      floorScore += hasStairs ? 20 : 0;
+      floorScore += hasElevator ? 15 : 0;
+      floorScore += hasBathrooms ? 20 : 0;
+      floorScore += Math.min(20, perimeterWalls);
+      maxScore += 100;
+
+      totalScore += floorScore;
+    });
+
+    return maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
+  },
 }));

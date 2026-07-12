@@ -24,7 +24,14 @@ import {
   Gift,
   Clock,
   Heart,
-  Activity
+  Activity,
+  Flame,
+  Gauge,
+  Copy,
+  ShieldCheck,
+  BookOpen,
+  MapPin,
+  Zap
 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
@@ -64,9 +71,19 @@ export const Management: React.FC = () => {
     setRoomRate,
     gameDay,
     gameHour,
+    guestSpawnRatePerSecond,
+    setGuestSpawnRatePerSecond,
+    gameSpeed,
+    setGameSpeed,
+    renameFloor,
+    duplicateFloor,
+    getFireSafetyRating,
+    guestLedger,
+    totalGuestsServed,
+    milestones,
   } = useHotelStore();
 
-  const [activeTab, setActiveTab] = useState<'operations' | 'chain' | 'staff' | 'guests' | 'presets' | 'categories' | 'bonuses'>('operations');
+  const [activeTab, setActiveTab] = useState<'operations' | 'chain' | 'staff' | 'guests' | 'presets' | 'categories' | 'bonuses' | 'settings'>('operations');
 
   // New Hotel Form State
   const [newHotelName, setNewHotelName] = useState('');
@@ -336,6 +353,17 @@ export const Management: React.FC = () => {
           >
             <Gift size={14} />
             Loyalty Clubs
+          </button>
+          <button 
+            onClick={() => setActiveTab('settings')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
+              activeTab === 'settings' 
+                ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/10' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
+            }`}
+          >
+            <Gauge size={14} />
+            Settings
           </button>
           <button 
             onClick={() => setActiveTab('presets')}
@@ -1434,6 +1462,143 @@ export const Management: React.FC = () => {
                 </div>
               </div>
             </form>
+          </div>
+        )}
+
+        {/* Tab: Settings — Game Speed, Spawn Rate, Fire Safety, Guest Ledger */}
+        {activeTab === 'settings' && (
+          <div className="space-y-6">
+            {/* Game Speed & Spawn Rate */}
+            <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+              <h3 className="text-sm font-black text-white flex items-center gap-2 mb-4">
+                <Gauge size={16} className="text-amber-500" />
+                Simulation Controls
+              </h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">Game Speed (1x–5x)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={1}
+                      max={5}
+                      step={1}
+                      value={gameSpeed}
+                      onChange={(e) => setGameSpeed(Number(e.target.value))}
+                      className="flex-1 accent-amber-500"
+                    />
+                    <span className="text-sm font-black text-amber-400 w-10 text-right">{gameSpeed}x</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">Higher speeds advance game hours faster per tick.</p>
+                </div>
+                <div>
+                  <label className="block text-xs font-bold uppercase text-slate-400 mb-1.5">Guest Spawn Rate (guests/sec)</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="range"
+                      min={0.05}
+                      max={3}
+                      step={0.05}
+                      value={guestSpawnRatePerSecond}
+                      onChange={(e) => setGuestSpawnRatePerSecond(Number(e.target.value))}
+                      className="flex-1 accent-amber-500"
+                    />
+                    <span className="text-sm font-black text-emerald-400 w-12 text-right">{guestSpawnRatePerSecond.toFixed(2)}</span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-1">Adjust how quickly new guests arrive. Saved automatically.</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Fire Safety Rating */}
+            <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+              <h3 className="text-sm font-black text-white flex items-center gap-2 mb-3">
+                <Flame size={16} className="text-red-400" />
+                Fire Safety Compliance
+              </h3>
+              {(() => {
+                const rating = getFireSafetyRating();
+                const ratingColor = rating >= 80 ? 'text-emerald-400' : rating >= 50 ? 'text-amber-400' : 'text-red-400';
+                const ratingLabel = rating >= 80 ? 'Excellent' : rating >= 50 ? 'Fair' : 'Critical';
+                return (
+                  <div className="flex items-center gap-4">
+                    <div className={`text-4xl font-black ${ratingColor}`}>{rating}%</div>
+                    <div>
+                      <p className="text-xs font-bold text-slate-300">Rating: {ratingLabel}</p>
+                      <p className="text-[10px] text-slate-500">Based on exits, stairs, elevators, and bathroom coverage per floor.</p>
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Guest Ledger */}
+            <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+              <h3 className="text-sm font-black text-white flex items-center gap-2 mb-3">
+                <BookOpen size={16} className="text-sky-400" />
+                Guest Checkout Ledger
+                <span className="text-[10px] font-bold text-slate-500 normal-case ml-2">(Last {guestLedger.length} guests)</span>
+              </h3>
+              {guestLedger.length === 0 ? (
+                <p className="text-xs text-slate-500">No checkout records yet. Guests will appear here after checking out.</p>
+              ) : (
+                <div className="max-h-64 overflow-y-auto space-y-2 scrollbar-thin">
+                  {guestLedger.slice(0, 50).map((entry) => (
+                    <div key={entry.id} className="flex flex-wrap items-center justify-between gap-2 bg-slate-950 rounded-lg p-3 border border-slate-800/60">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm">{entry.isVip ? '👑' : '🧑'}</span>
+                        <div>
+                          <p className="text-xs font-bold text-white">{entry.guestName}</p>
+                          <p className="text-[10px] text-slate-500 flex items-center gap-1">
+                            <MapPin size={8} /> {entry.nationality} · Floor {entry.floorIndex} · {entry.roomCategoryId}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-black text-emerald-400">+${entry.revenueGenerated.toLocaleString()}</p>
+                        <p className="text-[10px] text-slate-500">Sat: {entry.finalSatisfaction}% · D{entry.checkOutDay}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Floor Management */}
+            <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+              <h3 className="text-sm font-black text-white flex items-center gap-2 mb-3">
+                <Layers size={16} className="text-purple-400" />
+                Floor Management
+              </h3>
+              <div className="space-y-2">
+                {floors.map((floor, index) => (
+                  <div key={floor.level} className="flex items-center justify-between bg-slate-950 rounded-lg p-3 border border-slate-800/60">
+                    <div className="flex items-center gap-2 flex-1">
+                      <span className="text-xs font-bold text-slate-400">L{floor.level}</span>
+                      <input
+                        type="text"
+                        value={floor.name || `Level ${floor.level}`}
+                        onChange={(e) => renameFloor(index, e.target.value)}
+                        className="bg-transparent text-xs font-bold text-white border-b border-transparent hover:border-slate-700 focus:border-amber-500 focus:outline-none px-1 py-0.5 w-40"
+                        title="Rename floor"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          if (window.confirm(`Duplicate "${floor.name || `Level ${floor.level}`}"?`)) {
+                            duplicateFloor(index);
+                          }
+                        }}
+                        className="flex items-center gap-1 px-2 py-1 bg-slate-800 hover:bg-purple-600 text-slate-300 hover:text-white rounded text-[10px] font-bold transition-colors"
+                      >
+                        <Copy size={10} /> Duplicate
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         )}
 

@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useHotelStore } from '../store';
+import { PRESETS } from '../presets';
+import { RESIDENTIAL_ROOM_CATEGORIES } from '../residential';
 
 export const Onboarding: React.FC = () => {
-  const { needsOnboarding, setOnboardingField, onboarding, completeOnboarding, createCustomBrand, addHotel } = useHotelStore();
+  const { needsOnboarding, setOnboardingField, onboarding, completeOnboarding, createCustomBrand, addHotel, loadPreset, roomCategories, setRoomCategories } = useHotelStore();
   const [addressQuery, setAddressQuery] = useState('');
   const [searching, setSearching] = useState(false);
 
@@ -13,7 +15,6 @@ export const Onboarding: React.FC = () => {
     if (!addressQuery) return;
     setSearching(true);
     try {
-      // Use OpenStreetMap Nominatim as a free geocode fallback (no API key required).
       const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}`);
       const data = await res.json();
       if (data && data.length > 0) {
@@ -108,31 +109,25 @@ return (
           <button className="px-4 py-2 bg-slate-800 border border-slate-700 rounded" onClick={() => useHotelStore.getState().completeOnboarding()}>Skip</button>
           <button className="px-4 py-2 bg-amber-500 rounded font-bold" onClick={() => {
             const s = useHotelStore.getState().onboarding;
-            // create brand and hotel records locally if provided
             if (s.brandId) {
               createCustomBrand({ id: `brand-${Date.now()}`, name: s.brandId, icon: '🏨', isCustom: true });
             }
-            const hotelId = `h-${Date.now()}`;
-            const newHotel = {
-              id: hotelId,
-              name: s.hotelName || 'My Hotel',
-              brandId: s.brandId ? `brand-${Date.now()}` : 'b-budget',
-              floors: useHotelStore.getState().floors,
-              money: 15000,
-              staff: [],
-              guests: [],
-              roomRates: { standard: 50, suite: 120 },
-              roomCategories: useHotelStore.getState().roomCategories,
-              bonusPrograms: useHotelStore.getState().bonusPrograms,
-              activeBonusProgramId: null,
-              totalGuestsServed: 0,
-              milestones: useHotelStore.getState().milestones,
-              marketId: 'urban-business',
-              marketingBudget: 75,
-            } as any;
-            useHotelStore.getState().addHotel(newHotel.name, newHotel.brandId);
+
+            const presetId = s.buildingType === 'residences' ? 'residences' : 'small-hotel';
+            loadPreset(presetId);
+
+            if (s.buildingType === 'residences') {
+              setRoomCategories(RESIDENTIAL_ROOM_CATEGORIES);
+            }
+
+            const name = s.buildingType === 'residences'
+              ? (s.residenceName || 'Skyline Residences')
+              : (s.hotelName || 'My Hotel');
+
+            const brandId = s.brandId ? `brand-${Date.now()}` : 'b-budget';
+            addHotel(name, brandId);
             useHotelStore.getState().setOnboardingField('location', s.location || null);
-            useHotelStore.getState().completeOnboarding();
+            completeOnboarding();
           }}>Finish</button>
         </div>
       </div>

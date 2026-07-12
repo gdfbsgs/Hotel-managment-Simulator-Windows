@@ -223,6 +223,7 @@ export interface HotelMarket {
   compSetAdr: number;
   utilityRate: number;
   marketingEfficiency: number;
+  competitorAdr?: number;
 }
 
 export const HOTEL_MARKETS: HotelMarket[] = [
@@ -236,6 +237,7 @@ export const HOTEL_MARKETS: HotelMarket[] = [
     leisureShare: 0.18,
     groupShare: 0.20,
     compSetAdr: 185,
+    competitorAdr: 165,
     utilityRate: 1.15,
     marketingEfficiency: 0.9,
   },
@@ -249,6 +251,7 @@ export const HOTEL_MARKETS: HotelMarket[] = [
     leisureShare: 0.72,
     groupShare: 0.16,
     compSetAdr: 210,
+    competitorAdr: 195,
     utilityRate: 1.05,
     marketingEfficiency: 1.1,
   },
@@ -262,6 +265,7 @@ export const HOTEL_MARKETS: HotelMarket[] = [
     leisureShare: 0.35,
     groupShare: 0.20,
     compSetAdr: 145,
+    competitorAdr: 130,
     utilityRate: 1.0,
     marketingEfficiency: 0.85,
   },
@@ -275,6 +279,7 @@ export const HOTEL_MARKETS: HotelMarket[] = [
     leisureShare: 0.22,
     groupShare: 0.40,
     compSetAdr: 165,
+    competitorAdr: 148,
     utilityRate: 1.08,
     marketingEfficiency: 1.0,
   },
@@ -288,6 +293,7 @@ export const HOTEL_MARKETS: HotelMarket[] = [
     leisureShare: 0.70,
     groupShare: 0.15,
     compSetAdr: 195,
+    competitorAdr: 175,
     utilityRate: 1.2,
     marketingEfficiency: 1.05,
   },
@@ -381,6 +387,7 @@ export function calculateDemandScore(params: {
   marketingBudget: number;
   satisfaction: number;
   occupancyRate: number;
+  hotelAdr?: number;
 }): number {
   const market = getMarket(params.marketId);
   const season = getSeasonMultiplier(params.gameDay);
@@ -395,6 +402,14 @@ export function calculateDemandScore(params: {
 
   demand += (params.marketingBudget / 100) * market.marketingEfficiency;
   demand += (params.satisfaction - 70) * 0.15;
+
+  const competitorAdr = (market as any).competitorAdr ?? market.compSetAdr * 0.92;
+  const hotelAdr = params.hotelAdr ?? 0;
+  if (competitorAdr > 0 && hotelAdr > 0 && hotelAdr > competitorAdr * 1.15) {
+    demand *= 0.8;
+  } else if (competitorAdr > 0 && hotelAdr > 0 && hotelAdr < competitorAdr * 0.85) {
+    demand *= 1.12;
+  }
 
   if (params.occupancyRate > 90) demand *= 0.82;
   else if (params.occupancyRate > 75) demand *= 0.92;
@@ -444,17 +459,22 @@ export function calculateOperatingCosts(params: {
   marketingBudget: number;
   guestCount: number;
   inventory: ReturnType<typeof countRoomInventory>;
+  inflationRate?: number;
+  energyUsage?: number;
 }) {
   const market = getMarket(params.marketId);
-  const staffPayroll = params.staff.reduce((acc, s) => acc + s.salary, 0);
+  const inflationRate = params.inflationRate ?? 0;
+  const inflationMultiplier = 1 + inflationRate;
+  const energyUsage = params.energyUsage ?? 0;
+  const staffPayroll = Math.round(params.staff.reduce((acc, s) => acc + s.salary, 0) * inflationMultiplier);
   const utilities = Math.round(
-    (params.inventory.totalTiles * 0.35 + params.inventory.floors * 120) * market.utilityRate
+    ((params.inventory.totalTiles * 0.35 + params.inventory.floors * 120) * market.utilityRate + energyUsage * 0.5) * inflationMultiplier
   );
-  const housekeeping = Math.round(params.guestCount * 8 + params.inventory.rooms * 2);
-  const maintenance = Math.round(params.inventory.elevators * 45 + params.inventory.floors * 35);
+  const housekeeping = Math.round((params.guestCount * 8 + params.inventory.rooms * 2) * inflationMultiplier);
+  const maintenance = Math.round((params.inventory.elevators * 45 + params.inventory.floors * 35) * inflationMultiplier);
   const marketing = params.marketingBudget;
-  const propertyTax = Math.round(params.inventory.floors * 85 + params.inventory.rooms * 12);
-  const insurance = Math.round(params.inventory.rooms * 6 + 150);
+  const propertyTax = Math.round((params.inventory.floors * 85 + params.inventory.rooms * 12) * inflationMultiplier);
+  const insurance = Math.round((params.inventory.rooms * 6 + 150) * inflationMultiplier);
 
   const total = staffPayroll + utilities + housekeeping + maintenance + marketing + propertyTax + insurance;
 
@@ -522,6 +542,7 @@ export function buildOperationsReport(params: {
   bonusPrivileges: string[];
   totalGuestsServed: number;
   previousReport?: OperationsReport | null;
+  inflationRate?: number;
 }): OperationsReport {
   const inventory = countRoomInventory(params.floors);
   const inRoom = params.guests.filter((g) => g.state === 'in-room');
@@ -550,6 +571,7 @@ export function buildOperationsReport(params: {
     marketingBudget: params.marketingBudget,
     satisfaction: avgSatisfaction,
     occupancyRate,
+    hotelAdr: params.previousReport?.adr,
   });
 
   const roomRevenue = calculateRoomRevenue({
@@ -574,6 +596,8 @@ export function buildOperationsReport(params: {
     marketingBudget: params.marketingBudget,
     guestCount: inRoom.length,
     inventory,
+    inflationRate: params.inflationRate ?? 0,
+    energyUsage: (params.previousReport?.expenses?.utilities ?? 0) * 0.1,
   });
 
   const roomsSold = inRoom.length;

@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Sky, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { useHotelStore } from '../store';
-import { TileType, GuestNPC } from '../types';
+import { TileType, GuestNPC, ViewportSync } from '../types';
 import {
   checkPlayerCollision,
   findInteractable,
@@ -16,8 +16,11 @@ import {
 } from '../walkPhysics';
 import { ChevronUp, ChevronDown, Move, Eye, Hand } from 'lucide-react';
 
+
+
 const GRID_SIZE = 20;
 const TILE_SIZE = 2;
+
 const WALL_HEIGHT = 3.8; // Taller ceiling height like in real-life luxury hotels
 const FLOOR_HEIGHT = 0.1;
 
@@ -340,6 +343,7 @@ interface FpsControlsProps {
   floorTransitionRef: React.MutableRefObject<{ active: boolean; fromY: number; targetY: number; progress: number }>;
   mode: string;
   setActiveFloor: (next: number) => void;
+  setViewportSync?: (s: Partial<ViewportSync>) => void;
 }
 
 const FpsControls: React.FC<FpsControlsProps> = ({
@@ -352,9 +356,14 @@ const FpsControls: React.FC<FpsControlsProps> = ({
   floorTransitionRef,
   mode,
   setActiveFloor,
+  setViewportSync,
 }) => {
   const { camera } = useThree();
-  const { activeFloorIndex, floors } = useHotelStore();
+  const { activeFloorIndex, floors, viewportSync } = useHotelStore((s) => ({
+    activeFloorIndex: s.activeFloorIndex,
+    floors: s.floors,
+    viewportSync: s.viewportSync as ViewportSync,
+  }));
   const keys = useRef<{ [key: string]: boolean }>({});
   
   const yaw = useRef(0);
@@ -408,7 +417,15 @@ const FpsControls: React.FC<FpsControlsProps> = ({
     const targetFloorIndex = activeFloorIndex;
     const activeFloor = floors[targetFloorIndex];
     const spawnTile = activeFloor ? findWalkSpawn(activeFloor.grid) : null;
-    const spawn = spawnTile ? gridToWorld(spawnTile.gx, spawnTile.gy) : gridToWorld(10, 12);
+    let spawn = spawnTile ? gridToWorld(spawnTile.gx, spawnTile.gy) : gridToWorld(10, 12);
+
+    if (mode === '3D' && viewportSync) {
+      if (viewportSync.cameraTarget) {
+        spawn.x = viewportSync.cameraTarget.x;
+        spawn.z = viewportSync.cameraTarget.z ?? spawn.z;
+      }
+    }
+
     const eyeHeight = targetFloorIndex * WALL_HEIGHT + 1.7;
     camera.position.set(spawn.x, eyeHeight, spawn.z);
     yaw.current = 0;
@@ -421,6 +438,16 @@ const FpsControls: React.FC<FpsControlsProps> = ({
     if (floorTransitionRef.current.active) return;
     camera.position.y = activeFloorIndex * WALL_HEIGHT + 1.7;
   }, [activeFloorIndex, camera, floorTransitionRef]);
+
+  useEffect(() => {
+    if (!setViewportSync) return;
+    if (mode !== '3D' && mode !== 'Walk') {
+      setViewportSync({
+        cameraTarget: { x: camera.position.x, y: camera.position.y, z: camera.position.z },
+        activeFloorIndex,
+      });
+    }
+  }, [mode, camera, activeFloorIndex, setViewportSync]);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -596,24 +623,29 @@ const FpsControls: React.FC<FpsControlsProps> = ({
   return null;
 };
 
-const getMergedBlocks = (grid: TileType[][], type: TileType) => {
+const getMergedBlocks = (grid: TileType[][], type: TileType, rotations?: Record<string, number>) => {
   const height = grid.length;
   const width = grid[0].length;
   const visited = Array(height).fill(0).map(() => Array(width).fill(false));
-  const blocks: {x: number, y: number, w: number, h: number}[] = [];
+  const blocks: {x: number, y: number, w: number, h: number, rotation: number}[] = [];
+
+  const getRot = (cx: number, cy: number) => {
+    if (!rotations) return 0;
+    return rotations[`${cx}:${cy}`] ?? 0;
+  };
 
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
       if (grid[y][x] === type && !visited[y][x]) {
         let w = 1;
-        while (x + w < width && grid[y][x + w] === type && !visited[y][x + w]) {
+        while (x + w < width && grid[y][x + w] === type && !visited[y][x + w] && getRot(x + w, y) === getRot(x, y)) {
           w++;
         }
         let h = 1;
         let canExpand = true;
         while (y + h < height && canExpand) {
           for (let i = 0; i < w; i++) {
-            if (grid[y + h][x + i] !== type || visited[y + h][x + i]) {
+            if (grid[y + h][x + i] !== type || visited[y + h][x + i] || getRot(x + i, y + h) !== getRot(x, y)) {
               canExpand = false;
               break;
             }
@@ -625,14 +657,15 @@ const getMergedBlocks = (grid: TileType[][], type: TileType) => {
             visited[y + dy][x + dx] = true;
           }
         }
-        blocks.push({ x, y, w, h });
+        blocks.push({ x, y, w, h, rotation: getRot(x, y) });
       }
     }
   }
   return blocks;
 };
 
-const MergedBed = ({ x, y, w, h, grid }: { x: number, y: number, w: number, h: number, grid: TileType[][] }) => {
+const MergedBed = ({ x, y, w, h, grid, rotation = 0 }: { x: number, y: number, w: number, h: number, grid: TileType[][], rotation?: number }) => {
+  const rotRad = (rotation || 0) * Math.PI / 180;
   let touchesTop = false, touchesBottom = false, touchesLeft = false, touchesRight = false;
   for (let i = 0; i < w; i++) {
     if (y > 0 && grid[y-1][x+i] === 'wall') touchesTop = true;
@@ -658,7 +691,7 @@ const MergedBed = ({ x, y, w, h, grid }: { x: number, y: number, w: number, h: n
   const fabricBlanket = getFabricBlanketTexture();
 
   return (
-    <group position={[centerX, 0, centerZ]}>
+    <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
       {/* Wood Base Bed Frame */}
       <mesh position={[0, FLOOR_HEIGHT / 2, 0]}>
          <boxGeometry args={[frameWidth, FLOOR_HEIGHT, frameDepth]} />
@@ -723,21 +756,20 @@ const MergedWall = ({ x, y, w, h }: { x: number, y: number, w: number, h: number
   );
 };
 
-const MergedTable = ({ x, y, w, h }: { x: number, y: number, w: number, h: number }) => {
+const MergedTable = ({ x, y, w, h, rotation = 0 }: { x: number, y: number, w: number, h: number, rotation?: number }) => {
+  const rotRad = (rotation || 0) * Math.PI / 180;
   const centerX = x * TILE_SIZE + (w * TILE_SIZE) / 2;
   const centerZ = y * TILE_SIZE + (h * TILE_SIZE) / 2;
   return (
-    <group position={[centerX, 0, centerZ]}>
+    <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
       <mesh position={[0, FLOOR_HEIGHT / 2, 0]}>
          <boxGeometry args={[w * TILE_SIZE, FLOOR_HEIGHT, h * TILE_SIZE]} />
          <meshStandardMaterial color="#cbd5e1" />
       </mesh>
-      {/* Wooden tabletop */}
       <mesh position={[0, 0.5, 0]}>
         <boxGeometry args={[w * TILE_SIZE * 0.8, 0.1, h * TILE_SIZE * 0.8]} />
         <meshStandardMaterial map={getWoodTexture()} roughness={0.65} />
       </mesh>
-      {/* Center column stand */}
       <mesh position={[0, 0.25, 0]}>
         <boxGeometry args={[w * TILE_SIZE * 0.2, 0.5, h * TILE_SIZE * 0.2]} />
         <meshStandardMaterial map={getMahoganyTexture()} roughness={0.8} />
@@ -746,17 +778,16 @@ const MergedTable = ({ x, y, w, h }: { x: number, y: number, w: number, h: numbe
   );
 };
 
-const MergedReception = ({ x, y, w, h }: { x: number, y: number, w: number, h: number }) => {
+const MergedReception = ({ x, y, w, h, rotation = 0 }: { x: number, y: number, w: number, h: number, rotation?: number }) => {
+  const rotRad = (rotation || 0) * Math.PI / 180;
   const centerX = x * TILE_SIZE + (w * TILE_SIZE) / 2;
   const centerZ = y * TILE_SIZE + (h * TILE_SIZE) / 2;
   return (
-    <group position={[centerX, 0, centerZ]}>
-      {/* Terrazzo desk base slab */}
+    <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
       <mesh position={[0, FLOOR_HEIGHT / 2, 0]}>
          <boxGeometry args={[w * TILE_SIZE, FLOOR_HEIGHT, h * TILE_SIZE]} />
          <meshStandardMaterial map={getTerrazzoTexture()} roughness={0.4} />
       </mesh>
-      {/* Mahogany Front Desk Counter */}
       <mesh position={[0, 0.6, 0]}>
         <boxGeometry args={[w * TILE_SIZE * 0.9, 1.2, h * TILE_SIZE * 0.9]} />
         <meshStandardMaterial map={getMahoganyTexture()} roughness={0.7} />
@@ -860,11 +891,12 @@ const MergedDoor = ({
   );
 };
 
-const MergedBathroom = ({ x, y, w, h }: { x: number, y: number, w: number, h: number }) => {
+const MergedBathroom = ({ x, y, w, h, rotation = 0 }: { x: number, y: number, w: number, h: number, rotation?: number }) => {
+  const rotRad = (rotation || 0) * Math.PI / 180;
   const centerX = x * TILE_SIZE + (w * TILE_SIZE) / 2;
   const centerZ = y * TILE_SIZE + (h * TILE_SIZE) / 2;
   return (
-    <group position={[centerX, 0, centerZ]}>
+    <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
       {/* Beautiful Aqua Mosaic tiles */}
       <mesh position={[0, FLOOR_HEIGHT / 2, 0]}>
          <boxGeometry args={[w * TILE_SIZE, FLOOR_HEIGHT, h * TILE_SIZE]} />
@@ -879,11 +911,12 @@ const MergedBathroom = ({ x, y, w, h }: { x: number, y: number, w: number, h: nu
   );
 };
 
-const MergedStaff = ({ x, y, w, h }: { x: number, y: number, w: number, h: number }) => {
+const MergedStaff = ({ x, y, w, h, rotation = 0 }: { x: number, y: number, w: number, h: number, rotation?: number }) => {
+  const rotRad = (rotation || 0) * Math.PI / 180;
   const centerX = x * TILE_SIZE + (w * TILE_SIZE) / 2;
   const centerZ = y * TILE_SIZE + (h * TILE_SIZE) / 2;
   return (
-    <group position={[centerX, 0, centerZ]}>
+    <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
       <mesh position={[0, FLOOR_HEIGHT / 2, 0]}>
          <boxGeometry args={[w * TILE_SIZE, FLOOR_HEIGHT, h * TILE_SIZE]} />
          <meshStandardMaterial color="#ffe4e6" />
@@ -985,10 +1018,11 @@ const GuestAvatar = ({ guest }: { guest: GuestNPC }) => {
 };
 
 const MergedElevator = ({
-  x, y, w, h, floorLevel, doorsOpen,
+  x, y, w, h, floorLevel, doorsOpen, rotation = 0,
 }: {
-  x: number; y: number; w: number; h: number; floorLevel: number; doorsOpen: boolean;
+  x: number; y: number; w: number; h: number; floorLevel: number; doorsOpen: boolean; rotation?: number;
 }) => {
+  const rotRad = (rotation || 0) * Math.PI / 180;
   const centerX = x * TILE_SIZE + (w * TILE_SIZE) / 2;
   const centerZ = y * TILE_SIZE + (h * TILE_SIZE) / 2;
   const shaftW = w * TILE_SIZE * 0.92;
@@ -1008,7 +1042,7 @@ const MergedElevator = ({
   });
 
   return (
-    <group position={[centerX, 0, centerZ]}>
+    <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
       {/* Landing floor */}
       <mesh position={[0, FLOOR_HEIGHT / 2, 0]}>
         <boxGeometry args={[w * TILE_SIZE, FLOOR_HEIGHT, h * TILE_SIZE]} />
@@ -1204,7 +1238,14 @@ const TileModel = ({ type, position }: { type: TileType; position: [number, numb
 };
 
 export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
-  const { floors, guests, activeFloorIndex, setActiveFloor } = useHotelStore();
+  const setViewportSync = useHotelStore((s) => s.setViewportSync);
+  const { floors, guests, activeFloorIndex, setActiveFloor, viewportSync } = useHotelStore((s) => ({
+    floors: s.floors,
+    guests: s.guests,
+    activeFloorIndex: s.activeFloorIndex,
+    setActiveFloor: s.setActiveFloor,
+    viewportSync: s.viewportSync as ViewportSync,
+  }));
 
   const offsetX = WALK_OFFSET;
   const offsetZ = WALK_OFFSET;
@@ -1226,16 +1267,16 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
     () =>
       visibleFloors.map((floor) => ({
         floor,
-        floorBlocks: getMergedBlocks(floor.grid, 'floor'),
-        wallBlocks: getMergedBlocks(floor.grid, 'wall'),
-        bedBlocks: getMergedBlocks(floor.grid, 'bed'),
-        tableBlocks: getMergedBlocks(floor.grid, 'table'),
-        receptionBlocks: getMergedBlocks(floor.grid, 'reception'),
-        windowBlocks: getMergedBlocks(floor.grid, 'window'),
-        doorBlocks: getMergedBlocks(floor.grid, 'door'),
-        elevatorBlocks: getMergedBlocks(floor.grid, 'elevator'),
-        bathroomBlocks: getMergedBlocks(floor.grid, 'bathroom'),
-        staffBlocks: getMergedBlocks(floor.grid, 'staff'),
+        floorBlocks: getMergedBlocks(floor.grid, 'floor', floor.rotations),
+        wallBlocks: getMergedBlocks(floor.grid, 'wall', floor.rotations),
+        bedBlocks: getMergedBlocks(floor.grid, 'bed', floor.rotations),
+        tableBlocks: getMergedBlocks(floor.grid, 'table', floor.rotations),
+        receptionBlocks: getMergedBlocks(floor.grid, 'reception', floor.rotations),
+        windowBlocks: getMergedBlocks(floor.grid, 'window', floor.rotations),
+        doorBlocks: getMergedBlocks(floor.grid, 'door', floor.rotations),
+        elevatorBlocks: getMergedBlocks(floor.grid, 'elevator', floor.rotations),
+        bathroomBlocks: getMergedBlocks(floor.grid, 'bathroom', floor.rotations),
+        staffBlocks: getMergedBlocks(floor.grid, 'staff', floor.rotations),
       })),
     [visibleFloors]
   );
@@ -1245,6 +1286,24 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
   const interactSignalRef = useRef(0);
   const floorTransitionRef = useRef({ active: false, fromY: 1.7, targetY: 1.7, progress: 0 });
   const doorCloseTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  const cameraRef = useRef<THREE.Camera | null>(null);
+
+  useEffect(() => {
+    if (mode !== '3D' && mode !== 'Walk') {
+      const cam = cameraRef.current;
+      if (cam) {
+        setViewportSync({
+          cameraTarget: {
+            x: cam.position.x,
+            y: cam.position.y,
+            z: cam.position.z,
+          },
+          activeFloorIndex,
+        });
+      }
+    }
+  }, [mode, setViewportSync, activeFloorIndex]);
 
   const [openDoors, setOpenDoors] = useState<Set<string>>(new Set());
   const [elevatorDoorsOpen, setElevatorDoorsOpen] = useState<Set<string>>(new Set());
@@ -1518,6 +1577,7 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
             floorTransitionRef={floorTransitionRef}
             mode={mode}
             setActiveFloor={setActiveFloor}
+            setViewportSync={(s) => useHotelStore.getState().setViewportSync(s)}
           />
         ) : (
           <OrbitControls 
