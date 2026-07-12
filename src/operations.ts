@@ -189,6 +189,11 @@ function evaluateFloorRoomCategory(floor: Floor, categories: RoomCategory[]): Ro
       if (bedInfo.bedroomUnits !== cat.requiredBedroomUnits) return;
     }
 
+    if (typeof cat.minBedroomUnits === 'number') {
+      const bedInfo = computeBedInfo();
+      if (bedInfo.bedroomUnits < cat.minBedroomUnits) return;
+    }
+
     if (typeof cat.minBathrooms === 'number') {
       if (countBathrooms() < cat.minBathrooms) return;
     }

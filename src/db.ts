@@ -132,6 +132,138 @@ export const DEFAULT_BRANDS = [
     vipSpawnRate: 0.1,
     icon: '🏷️',
     color: 'from-green-500 to-emerald-500'
+  },
+  {
+    id: 'b-hilton',
+    name: 'Hilton',
+    description: 'Global hospitality leader with premium urban and resort properties.',
+    vipMultiplier: 1.28,
+    bedMultiplier: 1.18,
+    styleColor: 'from-blue-700/20 to-blue-900/10 border-blue-600/30 text-blue-300',
+    vipSpawnRate: 0.19,
+    icon: '🏙️',
+    color: 'from-blue-600 to-indigo-500'
+  },
+  {
+    id: 'b-hyatt',
+    name: 'Hyatt',
+    description: 'Design-forward hospitality with boutique hotel sensibilities and strong loyalty.',
+    vipMultiplier: 1.35,
+    bedMultiplier: 1.22,
+    styleColor: 'from-slate-600/20 to-slate-900/10 border-slate-500/30 text-slate-300',
+    vipSpawnRate: 0.22,
+    icon: '🌃',
+    color: 'from-slate-400 to-slate-600'
+  },
+  {
+    id: 'b-sheraton',
+    name: 'Sheraton',
+    description: 'Classic upscale brand known for grand public spaces and consistent service.',
+    vipMultiplier: 1.12,
+    bedMultiplier: 1.1,
+    styleColor: 'from-yellow-600/20 to-yellow-900/10 border-yellow-500/30 text-yellow-400',
+    vipSpawnRate: 0.13,
+    icon: '⭐',
+    color: 'from-yellow-500 to-amber-500'
+  },
+  {
+    id: 'b-westin',
+    name: 'Westin',
+    description: 'Wellness-focused upscale brand with heavenly beds and holistic guest experience.',
+    vipMultiplier: 1.22,
+    bedMultiplier: 1.15,
+    styleColor: 'from-teal-600/20 to-teal-900/10 border-teal-500/30 text-teal-400',
+    vipSpawnRate: 0.17,
+    icon: '🌿',
+    color: 'from-teal-500 to-emerald-500'
+  },
+  {
+    id: 'b-ritzcarlton',
+    name: 'The Ritz-Carlton',
+    description: 'Ultra-luxury brand with legendary service and the highest standards in hospitality.',
+    vipMultiplier: 1.9,
+    bedMultiplier: 1.7,
+    styleColor: 'from-amber-700/20 to-amber-900/10 border-amber-600/30 text-amber-300',
+    vipSpawnRate: 0.38,
+    icon: '👑',
+    color: 'from-amber-600 to-yellow-500'
+  },
+  {
+    id: 'b-fourseasons',
+    name: 'Four Seasons',
+    description: 'Exclusive luxury brand offering personalized service and pristine properties worldwide.',
+    vipMultiplier: 1.85,
+    bedMultiplier: 1.65,
+    styleColor: 'from-orange-700/20 to-orange-900/10 border-orange-500/30 text-orange-300',
+    vipSpawnRate: 0.36,
+    icon: '🌴',
+    color: 'from-orange-500 to-amber-500'
+  },
+  {
+    id: 'b-conrad',
+    name: 'Conrad',
+    description: 'Luxury lifestyle brand with bold aesthetics and modern concierge culture.',
+    vipMultiplier: 1.55,
+    bedMultiplier: 1.38,
+    styleColor: 'from-fuchsia-600/20 to-fuchsia-900/10 border-fuchsia-500/30 text-fuchsia-400',
+    vipSpawnRate: 0.28,
+    icon: '💎',
+    color: 'from-fuchsia-500 to-pink-500'
+  },
+  {
+    id: 'b-fairmont',
+    name: 'Fairmont',
+    description: 'Iconic luxury hotels with grand heritage properties and timeless elegance.',
+    vipMultiplier: 1.5,
+    bedMultiplier: 1.35,
+    styleColor: 'from-yellow-700/20 to-yellow-900/10 border-yellow-600/30 text-yellow-300',
+    vipSpawnRate: 0.26,
+    icon: '🏛️',
+    color: 'from-yellow-600 to-orange-500'
+  },
+  {
+    id: 'b-kempinski',
+    name: 'Kempinski',
+    description: 'Europe\'s oldest luxury hotel group, blending European heritage with modern luxury.',
+    vipMultiplier: 1.48,
+    bedMultiplier: 1.32,
+    styleColor: 'from-slate-700/20 to-slate-900/10 border-slate-600/30 text-slate-300',
+    vipSpawnRate: 0.25,
+    icon: '🏰',
+    color: 'from-slate-500 to-slate-700'
+  },
+  {
+    id: 'b-mandarin',
+    name: 'Mandarin Oriental',
+    description: 'Legendary Asian-inspired luxury with world-class spas and culinary excellence.',
+    vipMultiplier: 1.65,
+    bedMultiplier: 1.45,
+    styleColor: 'from-red-700/20 to-red-900/10 border-red-600/30 text-red-300',
+    vipSpawnRate: 0.30,
+    icon: '🐉',
+    color: 'from-red-600 to-rose-600'
+  },
+  {
+    id: 'b-stregis',
+    name: 'St. Regis',
+    description: 'Ultra-luxury brand with 24-hour butler service and timeless New York sophistication.',
+    vipMultiplier: 1.75,
+    bedMultiplier: 1.55,
+    styleColor: 'from-emerald-700/20 to-emerald-900/10 border-emerald-600/30 text-emerald-300',
+    vipSpawnRate: 0.34,
+    icon: '🎩',
+    color: 'from-emerald-600 to-teal-600'
+  },
+  {
+    id: 'b-waldorf',
+    name: 'Waldorf Astoria',
+    description: 'American luxury icon known for prestige, landmark properties, and peerless service.',
+    vipMultiplier: 1.7,
+    bedMultiplier: 1.5,
+    styleColor: 'from-purple-700/20 to-purple-900/10 border-purple-500/30 text-purple-300',
+    vipSpawnRate: 0.33,
+    icon: '🏆',
+    color: 'from-purple-500 to-indigo-500'
   }
 ];
 
@@ -183,6 +315,26 @@ export const HOTEL_CHAINS = [
     id: 'hc-ihg-group',
     name: 'IHG Hotels & Resorts',
     brandIds: ['b-ihg','b-crowneplaza','b-holidayinn']
+  },
+  {
+    id: 'hc-hilton-group',
+    name: 'Hilton Worldwide',
+    brandIds: ['b-hilton']
+  },
+  {
+    id: 'hc-hyatt-group',
+    name: 'Hyatt Hotels',
+    brandIds: ['b-hyatt']
+  },
+  {
+    id: 'hc-marriott-sheraton',
+    name: 'Marriott / Sheraton',
+    brandIds: ['b-marriott','b-jw-marriott','b-sheraton','b-staybridge']
+  },
+  {
+    id: 'hc-luxury-collection',
+    name: 'Luxury Collection',
+    brandIds: ['b-ritzcarlton','b-fourseasons','b-conrad','b-fairmont','b-kempinski','b-mandarin','b-stregis','b-waldorf','b-luxury']
   }
 ];
 

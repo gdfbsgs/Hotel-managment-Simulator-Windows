@@ -5,7 +5,7 @@ import { RoomCategory, TileType } from './types';
  *  - bed      => apartment bedroom
  *  - bathroom => bathroom
  *  - table    => kitchen/dining
- *  - plant    => sofa/comfort decor (proxy)
+ *  - plant    => comfort decor
  */
 export const RESIDENTIAL_ROOM_CATEGORIES: RoomCategory[] = [
   {
@@ -14,7 +14,7 @@ export const RESIDENTIAL_ROOM_CATEGORIES: RoomCategory[] = [
     price: 80000,
     icon: '🏙️',
     requiredTiles: ['bed', 'bathroom'],
-    description: 'Studio apartment (no internal walls except bathroom). Requires bed + bathroom.'
+    description: 'Studio apartment. Requires bed + bathroom.'
   },
   {
     id: 'rc-1bed-apartment',
@@ -22,7 +22,7 @@ export const RESIDENTIAL_ROOM_CATEGORIES: RoomCategory[] = [
     price: 110000,
     icon: '🛏️',
     requiredTiles: ['bed', 'bathroom', 'table'],
-    description: '1BR apartment with kitchen area (table proxy). Requires bed + bathroom + table.'
+    description: '1BR apartment with kitchen area. Requires bed + bathroom + table.'
   },
   {
     id: 'rc-2bed-apartment',
@@ -30,7 +30,7 @@ export const RESIDENTIAL_ROOM_CATEGORIES: RoomCategory[] = [
     price: 160000,
     icon: '🛌',
     requiredTiles: ['bed', 'bathroom', 'table', 'plant'],
-    description: '2BR apartment. Requires bed + bathroom + table + plant (comfort).'
+    description: '2BR apartment. Requires bed + bathroom + table + plant.'
   },
   {
     id: 'rc-3bed-apartment',
@@ -38,7 +38,8 @@ export const RESIDENTIAL_ROOM_CATEGORIES: RoomCategory[] = [
     price: 220000,
     icon: '🏡',
     requiredTiles: ['bed', 'bathroom', 'table', 'plant'],
-    description: '3BR apartment (bigger layout). Requires bed + bathroom + table + plant.'
+    minBathrooms: 2,
+    description: '3BR apartment with 2+ bathrooms. Requires bed + bathroom + table + plant, and at least 2 bathrooms.'
   },
   {
     id: 'rc-4bed-apartment',
@@ -46,38 +47,21 @@ export const RESIDENTIAL_ROOM_CATEGORIES: RoomCategory[] = [
     price: 290000,
     icon: '🏠',
     requiredTiles: ['bed', 'bathroom', 'table', 'plant'],
-    requiredBedroomUnits: 4,
     minBathrooms: 2,
     requiresDoorToBedrooms: true,
+    minBedroomUnits: 4,
+    description: '4BR apartment (4 BHK). Requires bed + bathroom + table + plant, 2+ bathrooms, doors to bedrooms, and at least 4 bedroom units.'
+  },
+  {
+    id: 'rc-5bed-apartment',
+    name: '5 Bedroom Apartment',
+    price: 380000,
+    icon: '🏰',
+    requiredTiles: ['bed', 'bathroom', 'table', 'plant'],
+    minBathrooms: 3,
+    requiresDoorToBedrooms: true,
+    minBedroomUnits: 5,
     bedClusterWallSeparation: true,
-    description: '4BR apartment (4 BHK). Requires 4 private bedroom units (bed tiles grouped as bedrooms), plus 2+ bathrooms, and at least one door leading to bedroom areas.'
+    description: '5BR apartment (5 BHK). Requires bed + bathroom + table + plant, 3+ bathrooms, doors to bedrooms, at least 5 bedroom units, and separated bedroom clusters.'
   }
 ];
-
-
-
-
-export function isKitchenRequired(catId: string): boolean {
-  return catId === 'rc-studio-kitchen' || catId === 'rc-family' || catId === 'rc-luxury-sofa';
-}
-
-export function isSofaRequired(catId: string): boolean {
-  return catId === 'rc-luxury-sofa';
-}
-
-export function isApartment(catId: string): boolean {
-  return catId === 'rc-apartment' || catId === 'rc-studio-kitchen' || catId === 'rc-family' || catId === 'rc-luxury-sofa';
-}
-
-export function residentialExtraTiles(catId: string): TileType[] {
-  // convenience helper if we later want richer UI; for now categories encode requirements
-  if (!catId) return [];
-  const map: Record<string, TileType[]> = {
-    'rc-apartment': [],
-    'rc-studio-kitchen': ['table'],
-    'rc-family': ['table', 'bathroom'],
-    'rc-luxury-sofa': ['table', 'bathroom', 'plant'],
-  };
-  return map[catId] || [];
-}
-

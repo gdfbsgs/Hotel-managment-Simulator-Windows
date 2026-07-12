@@ -122,7 +122,8 @@ export interface RoomCategory {
   presetTemplateId?: string; // linked layout template id for easy preset applying
 
   /** Optional structured requirements for residential-style rooms (e.g., 4BR apartments). */
-  requiredBedroomUnits?: number; // e.g., 4 bedroom units
+  requiredBedroomUnits?: number; // exact bedroom units (legacy)
+  minBedroomUnits?: number; // at least this many bedroom units
   minBathrooms?: number;
   requiresDoorToBedrooms?: boolean;
 
