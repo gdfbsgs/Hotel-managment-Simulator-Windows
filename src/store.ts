@@ -1605,7 +1605,8 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       guests: newGuests, 
       money: state.money + extraMoney, 
       staff: state.staff,
-      totalGuestsServed: nextGuestsServed
+      totalGuestsServed: nextGuestsServed,
+      guestSpawnAccumulator: spawnAcc
     };
     const synced = syncActiveHotelHelper({ ...state, ...updatedStateFields });
     return { ...updatedStateFields, hotels: synced };
