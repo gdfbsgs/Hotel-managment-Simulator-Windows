@@ -1309,6 +1309,8 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
   const [elevatorDoorsOpen, setElevatorDoorsOpen] = useState<Set<string>>(new Set());
   const interactTargetRef = useRef<{ type: 'door' | 'elevator'; label: string; key: string } | null>(null);
   const prevInteractTargetRef = useRef<{ type: 'door' | 'elevator'; label: string; key: string } | null>(null);
+  const prevShowElevatorPanelRef = useRef(false);
+  const prevNearElevatorKeyRef = useRef<string | null>(null);
 
   const [interactTarget, setInteractTarget] = useState<{ type: 'door' | 'elevator'; label: string; key: string } | null>(null);
   const [showElevatorPanel, setShowElevatorPanel] = useState(false);
@@ -1351,9 +1353,16 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
       prevInteractTargetRef.current = target;
       setInteractTarget(target);
     }
-    if (target?.type !== 'elevator') {
-      setShowElevatorPanel(false);
-      if (!target) setNearElevatorKey(null);
+
+    const shouldShowElevatorPanel = target?.type === 'elevator';
+    const nextNearElevatorKey = target?.key ?? null;
+    if (shouldShowElevatorPanel !== prevShowElevatorPanelRef.current) {
+      prevShowElevatorPanelRef.current = shouldShowElevatorPanel;
+      setShowElevatorPanel(shouldShowElevatorPanel);
+    }
+    if (nextNearElevatorKey !== prevNearElevatorKeyRef.current) {
+      prevNearElevatorKeyRef.current = nextNearElevatorKey;
+      setNearElevatorKey(nextNearElevatorKey);
     }
   }, []);
 
