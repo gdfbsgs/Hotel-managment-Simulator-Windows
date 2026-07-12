@@ -1308,6 +1308,7 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
   const [openDoors, setOpenDoors] = useState<Set<string>>(new Set());
   const [elevatorDoorsOpen, setElevatorDoorsOpen] = useState<Set<string>>(new Set());
   const interactTargetRef = useRef<{ type: 'door' | 'elevator'; label: string; key: string } | null>(null);
+  const prevInteractTargetRef = useRef<{ type: 'door' | 'elevator'; label: string; key: string } | null>(null);
 
   const [interactTarget, setInteractTarget] = useState<{ type: 'door' | 'elevator'; label: string; key: string } | null>(null);
   const [showElevatorPanel, setShowElevatorPanel] = useState(false);
@@ -1339,7 +1340,17 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
 
   const handleInteractTarget = useCallback((target: { type: 'door' | 'elevator'; label: string; key: string } | null) => {
     interactTargetRef.current = target;
-    setInteractTarget(target);
+    const prev = prevInteractTargetRef.current;
+    const targetKey = target?.key ?? null;
+    const prevKey = prev?.key ?? null;
+    const targetType = target?.type ?? null;
+    const prevType = prev?.type ?? null;
+    const targetLabel = target?.label ?? null;
+    const prevLabel = prev?.label ?? null;
+    if (targetKey !== prevKey || targetType !== prevType || targetLabel !== prevLabel) {
+      prevInteractTargetRef.current = target;
+      setInteractTarget(target);
+    }
     if (target?.type !== 'elevator') {
       setShowElevatorPanel(false);
       if (!target) setNearElevatorKey(null);
