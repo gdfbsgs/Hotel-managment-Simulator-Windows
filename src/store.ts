@@ -276,7 +276,7 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
       viewportSync: (data.viewportSync as ViewportSync) || { panOffset: { x: 0, y: 0 }, zoom: 1, cameraTarget: null, activeFloorIndex: 0 },
       supplyChain: (data.supplyChain as SupplyChain) || { inventory: { food: 1000, energy: 500, linen: 300, amenities: 200 }, procurementCosts: { food: 0.05, energy: 0.10, linen: 0.02, amenities: 0.03 } },
       emergency: (data.emergency as EmergencyState) || { pipeLeak: false, powerOutage: false, activeEmergencyFloor: null },
-      guestSpawnRatePerSecond: (data.guestSpawnRatePerSecond as number) || 0.4,
+      guestSpawnRatePerSecond: (data.guestSpawnRatePerSecond as number) || 10,
       gameSpeed: (data.gameSpeed as number) || 1,
       guestLedger: (data.guestLedger as GuestLedgerEntry[]) || [],
     });
@@ -555,7 +555,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     activeEmergencyFloor: null,
   },
   guestSpawnRatePerSecond: (() => {
-    try { const v = localStorage.getItem('archhotel_guest_spawn_rate'); return v ? parseFloat(v) : 0.4; } catch { return 0.4; }
+    try { const v = localStorage.getItem('archhotel_guest_spawn_rate'); return v ? parseFloat(v) : 10; } catch { return 10; }
   })(),
   guestSpawnAccumulator: 0,
   guestLedger: [],
@@ -830,7 +830,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
           viewportSync: (data.viewportSync as ViewportSync) || { panOffset: { x: 0, y: 0 }, zoom: 1, cameraTarget: null, activeFloorIndex: 0 },
           supplyChain: (data.supplyChain as SupplyChain) || { inventory: { food: 1000, energy: 500, linen: 300, amenities: 200 }, procurementCosts: { food: 0.05, energy: 0.10, linen: 0.02, amenities: 0.03 } },
           emergency: (data.emergency as EmergencyState) || { pipeLeak: false, powerOutage: false, activeEmergencyFloor: null },
-          guestSpawnRatePerSecond: (data.guestSpawnRatePerSecond as number) || 0.4,
+          guestSpawnRatePerSecond: (data.guestSpawnRatePerSecond as number) || 10,
           gameSpeed: (data.gameSpeed as number) || 1,
           guestLedger: (data.guestLedger as GuestLedgerEntry[]) || [],
         });
@@ -1808,7 +1808,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       totalGuestsServed: 0,
       milestones: getInitialMilestones(),
       activeMilestoneNotification: null,
-      guestSpawnRatePerSecond: 0.4,
+      guestSpawnRatePerSecond: 10,
       guestSpawnAccumulator: 0,
       gameSpeed: 1,
       guestLedger: [],
@@ -1978,7 +1978,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   }),
 
   setGuestSpawnRatePerSecond: (rate) => {
-    const clamped = Math.max(0.05, Math.min(rate, 3.0));
+    const clamped = Math.max(0.05, Math.min(rate, 20));
     set({ guestSpawnRatePerSecond: clamped });
     try { localStorage.setItem('archhotel_guest_spawn_rate', String(clamped)); } catch (e) {}
   },

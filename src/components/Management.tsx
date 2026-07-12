@@ -1497,7 +1497,7 @@ export const Management: React.FC = () => {
                     <input
                       type="range"
                       min={0.05}
-                      max={3}
+                      max={20}
                       step={0.05}
                       value={guestSpawnRatePerSecond}
                       onChange={(e) => setGuestSpawnRatePerSecond(Number(e.target.value))}
