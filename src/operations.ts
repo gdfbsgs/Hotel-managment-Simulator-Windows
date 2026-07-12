@@ -468,13 +468,13 @@ export function calculateOperatingCosts(params: {
   const energyUsage = params.energyUsage ?? 0;
   const staffPayroll = Math.round(params.staff.reduce((acc, s) => acc + s.salary, 0) * inflationMultiplier);
   const utilities = Math.round(
-    ((params.inventory.totalTiles * 0.35 + params.inventory.floors * 120) * market.utilityRate + energyUsage * 0.5) * inflationMultiplier
+    ((params.inventory.totalTiles * 0.2 + params.inventory.floors * 60) * market.utilityRate + energyUsage * 0.3) * inflationMultiplier
   );
-  const housekeeping = Math.round((params.guestCount * 8 + params.inventory.rooms * 2) * inflationMultiplier);
-  const maintenance = Math.round((params.inventory.elevators * 45 + params.inventory.floors * 35) * inflationMultiplier);
-  const marketing = params.marketingBudget;
-  const propertyTax = Math.round((params.inventory.floors * 85 + params.inventory.rooms * 12) * inflationMultiplier);
-  const insurance = Math.round((params.inventory.rooms * 6 + 150) * inflationMultiplier);
+  const housekeeping = Math.round((params.guestCount * 6 + params.inventory.rooms * 1) * inflationMultiplier);
+  const maintenance = Math.round((params.inventory.elevators * 20 + params.inventory.floors * 15) * inflationMultiplier);
+  const marketing = Math.round(params.marketingBudget * 0.6);
+  const propertyTax = Math.round((params.inventory.floors * 40 + params.inventory.rooms * 6) * inflationMultiplier);
+  const insurance = Math.round((params.inventory.rooms * 3 + 60) * inflationMultiplier);
 
   const total = staffPayroll + utilities + housekeeping + maintenance + marketing + propertyTax + insurance;
 

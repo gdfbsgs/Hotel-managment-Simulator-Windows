@@ -255,7 +255,7 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
       customBrands: (data.customBrands as Brand[]) || [],
       activeHotelBrandId: activeHotel.brandId || 'b-budget',
       floors: activeHotel.floors,
-      money: activeHotel.money ?? 15000,
+      money: activeHotel.money ?? 25000,
       staff: activeHotel.staff || [],
       guests: activeHotel.guests || [],
       roomRates: activeHotel.roomRates || { standard: 50, suite: 120 },
@@ -448,7 +448,7 @@ interface HotelStore {
 export const useHotelStore = create<HotelStore>((set, get) => ({
   user: null,
   floors: JSON.parse(JSON.stringify(PRESETS['small-hotel'])),
-  money: 15000,
+  money: 25000,
   staff: [
     { id: 's-receptionist-1', name: 'Alice (Receptionist)', role: 'receptionist', salary: 100, currentTask: 'Check-in Guests' },
     { id: 's-cleaner-1', name: 'Bob (Cleaner)', role: 'cleaner', salary: 50, currentTask: 'Clean Room' }
@@ -491,7 +491,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       name: 'Marriott Marquis',
       brandId: 'b-marriott',
       floors: JSON.parse(JSON.stringify(PRESETS['small-hotel'])),
-      money: 15000,
+      money: 25000,
       staff: [
         { id: 's-receptionist-1', name: 'Alice (Receptionist)', role: 'receptionist', salary: 100, currentTask: 'Check-in Guests' },
         { id: 's-cleaner-1', name: 'Bob (Cleaner)', role: 'cleaner', salary: 50, currentTask: 'Clean Room' }
@@ -504,7 +504,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       totalGuestsServed: 0,
       milestones: getInitialMilestones(),
       marketId: 'urban-business',
-      marketingBudget: 75,
+      marketingBudget: 40,
       propertyAppreciationRate: 0.005,
     },
     {
@@ -512,7 +512,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       name: 'Radisson Blu Plaza',
       brandId: 'b-radisson',
       floors: JSON.parse(JSON.stringify(PRESETS['small-hotel'])),
-      money: 15000,
+      money: 25000,
       staff: [
         { id: 's-receptionist-2', name: 'Claire (Receptionist)', role: 'receptionist', salary: 105, currentTask: 'Check-in Guests' },
         { id: 's-cleaner-2', name: 'Daniel (Cleaner)', role: 'cleaner', salary: 52, currentTask: 'Clean Room' }
@@ -525,7 +525,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       totalGuestsServed: 0,
       milestones: getInitialMilestones(),
       marketId: 'urban-business',
-      marketingBudget: 75,
+      marketingBudget: 40,
     }
   ],
   activeHotelId: 'h-1',
@@ -534,7 +534,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   gameDay: 1,
   gameHour: 8,
   marketId: 'urban-business',
-  marketingBudget: 75,
+  marketingBudget: 40,
   operationsReport: null,
   operationsHistory: [],
   inflationRate: 0.02,
@@ -611,7 +611,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       name: name || `Horizon Oasis ${state.hotels.length + 1}`,
       brandId: brandKey,
       floors: startingFloors,
-      money: 15000,
+      money: 25000,
       staff: startingStaff,
       guests: [],
       roomRates: { standard: 50, suite: 120 },
@@ -621,7 +621,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       totalGuestsServed: 0,
       milestones: getInitialMilestones(),
       marketId: state.marketId || 'urban-business',
-      marketingBudget: 75,
+      marketingBudget: 40,
     };
 
     return {
@@ -629,7 +629,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       activeHotelId: newHotelId,
       activeHotelBrandId: brandKey,
       floors: startingFloors,
-      money: 15000,
+      money: 25000,
       staff: startingStaff,
       guests: [],
       roomRates: { standard: 50, suite: 120 },
@@ -957,7 +957,8 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       : adjustedExpenses;
 
     const netIncome = report.revenue - expenses;
-    const newMoney = state.money + netIncome;
+    const starterBonus = gameDay <= 3 && state.totalGuestsServed < 5 ? 800 : 0;
+    const newMoney = state.money + netIncome + starterBonus;
     const operationsHistory = [...state.operationsHistory, { ...report, expenses: { ...report.expenses, total: expenses }, inflationRate }].slice(-24);
 
     const newSupplyChain = { ...state.supplyChain };
@@ -1779,7 +1780,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       name: 'Marriott Marquis',
       brandId: 'b-marriott',
       floors: startingFloors,
-      money: 15000,
+      money: 25000,
       staff: startingStaff,
       guests: [],
       roomRates: { standard: 50, suite: 120 },
@@ -1796,7 +1797,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       activeHotelBrandId: 'b-marriott',
       floors: defaultHotel.floors,
       activeFloorIndex: 0, 
-      money: 15000, 
+      money: 25000, 
       staff: startingStaff, 
       guests: [],
       roomRates: { standard: 50, suite: 120 },

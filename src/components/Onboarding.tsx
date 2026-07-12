@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useHotelStore } from '../store';
 import { PRESETS } from '../presets';
 import { RESIDENTIAL_ROOM_CATEGORIES } from '../residential';
+import { Brand } from '../types';
 
 export const Onboarding: React.FC = () => {
   const { needsOnboarding, setOnboardingField, onboarding, completeOnboarding, createCustomBrand, addHotel, loadPreset, roomCategories, setRoomCategories } = useHotelStore();
@@ -110,7 +111,21 @@ return (
           <button className="px-4 py-2 bg-amber-500 rounded font-bold" onClick={() => {
             const s = useHotelStore.getState().onboarding;
             if (s.brandId) {
-              createCustomBrand({ id: `brand-${Date.now()}`, name: s.brandId, icon: '🏨', isCustom: true });
+              const brandDefaults: Partial<Brand> = {
+                description: 'Custom brand created during onboarding.',
+                vipMultiplier: 1.2,
+                bedMultiplier: 1.1,
+                styleColor: 'from-fuchsia-600/20 to-indigo-900/10 border-fuchsia-500/30 text-fuchsia-400',
+                vipSpawnRate: 0.15,
+                color: 'from-fuchsia-500 to-indigo-500',
+              };
+              createCustomBrand({
+                id: `brand-${Date.now()}`,
+                name: s.brandId,
+                icon: '🏨',
+                isCustom: true,
+                ...brandDefaults,
+              } as Brand);
             }
 
             const presetId = s.buildingType === 'residences' ? 'residences' : 'small-hotel';
