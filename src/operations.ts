@@ -343,28 +343,72 @@ export function getPhaseLabel(phase: DayPhase): string {
 }
 
 export function countRoomInventory(floors: Floor[]) {
-  let beds = 0;
+  let bedUnits = 0;
   let bathrooms = 0;
   let elevators = 0;
   let reception = 0;
   let totalTiles = 0;
 
+  const GRID_H = 20;
+  const GRID_W = 20;
+  const inBounds = (x: number, y: number) => x >= 0 && y >= 0 && x < GRID_W && y < GRID_H;
+  const isBed = (grid: TileType[][], x: number, y: number) => inBounds(x, y) && grid[y][x] === 'bed';
+
+  const clusterToBedroomUnits = (clusterSize: number) => {
+    if (clusterSize <= 0) return 0;
+    if (clusterSize === 1) return 1;
+    if (clusterSize === 2) return 1;
+    return Math.ceil(clusterSize / 2);
+  };
+
+  const countBedUnitsInGrid = (grid: TileType[][]) => {
+    const visited = Array.from({ length: GRID_H }, () => Array(GRID_W).fill(false));
+    let units = 0;
+    const dirs = [
+      { dx: -1, dy: 0 }, { dx: 1, dy: 0 }, { dx: 0, dy: -1 }, { dx: 0, dy: 1 },
+    ];
+
+    for (let y = 0; y < GRID_H; y++) {
+      for (let x = 0; x < GRID_W; x++) {
+        if (!isBed(grid, x, y) || visited[y][x]) continue;
+        const queue: Array<{ x: number; y: number }> = [{ x, y }];
+        visited[y][x] = true;
+        let clusterSize = 0;
+        while (queue.length) {
+          const cur = queue.shift()!;
+          clusterSize++;
+          for (const { dx, dy } of dirs) {
+            const nx = cur.x + dx;
+            const ny = cur.y + dy;
+            if (!inBounds(nx, ny)) continue;
+            if (visited[ny][nx]) continue;
+            if (!isBed(grid, nx, ny)) continue;
+            visited[ny][nx] = true;
+            queue.push({ x: nx, y: ny });
+          }
+        }
+        units += clusterToBedroomUnits(clusterSize);
+      }
+    }
+    return units;
+  };
+
   floors.forEach((floor) => {
     floor.grid.forEach((row) => {
       row.forEach((cell) => {
         if (cell !== 'empty') totalTiles++;
-        if (cell === 'bed') beds++;
         if (cell === 'bathroom') bathrooms++;
         if (cell === 'elevator') elevators++;
         if (cell === 'reception') reception++;
       });
     });
+    bedUnits += countBedUnitsInGrid(floor.grid);
   });
 
-  const rooms = beds;
-  const guestCapacity = beds * 2;
+  const rooms = bedUnits;
+  const guestCapacity = bedUnits * 2;
 
-  return { beds, rooms, guestCapacity, bathrooms, elevators, reception, totalTiles, floors: floors.length };
+  return { beds: bedUnits, rooms, guestCapacity, bathrooms, elevators, reception, totalTiles, floors: floors.length };
 }
 
 export function calculateStarRating(
