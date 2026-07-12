@@ -7,7 +7,7 @@ import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { User, signInWithRedirect, signOut } from 'firebase/auth';
 import { googleProvider } from './firebase';
 import confetti from 'canvas-confetti';
-import { buildOperationsReport, getDayPhase, getGuestSpawnChance, calculateDemandScore, calculateStarRating, countRoomInventory } from './operations';
+import { buildOperationsReport, getDayPhase, getGuestSpawnChance, calculateDemandScore, calculateStarRating, countRoomInventory, countBedUnitsInGrid } from './operations';
 
 const GRID_SIZE = 20;
 const LOCAL_SAVE_KEY = 'archhotel_windows_save';
@@ -2020,12 +2020,11 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     floors.forEach((floor, fi) => {
       let floorScore = 0;
       const grid = floor.grid;
-      const hasReception = false;
       const exits: { x: number; y: number }[] = [];
       const elevators: { x: number; y: number }[] = [];
       const stairs: { x: number; y: number }[] = [];
-      let bedCount = 0;
       let bathroomCount = 0;
+      const bedCount = countBedUnitsInGrid(grid);
 
       for (let y = 0; y < GRID_SIZE; y++) {
         for (let x = 0; x < GRID_SIZE; x++) {
@@ -2033,7 +2032,6 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
           if (tile === 'door') exits.push({ x, y });
           if (tile === 'elevator') elevators.push({ x, y });
           if (tile === 'stairs') stairs.push({ x, y });
-          if (tile === 'bed') bedCount++;
           if (tile === 'bathroom') bathroomCount++;
         }
       }
