@@ -31,7 +31,22 @@ import {
   ShieldCheck,
   BookOpen,
   MapPin,
-  Zap
+  Zap,
+  Home,
+  Wrench,
+  FileText,
+  UserCheck,
+  XCircle,
+  Mail,
+  Phone,
+  Key,
+  Calendar,
+  DollarSign as DollarIcon,
+  AlertTriangle,
+  CheckCircle2,
+  X,
+  Eye,
+  Search
 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
@@ -81,9 +96,36 @@ export const Management: React.FC = () => {
     guestLedger,
     totalGuestsServed,
     milestones,
+    buildingType,
+    tenants,
+    leases,
+    apartmentUnits,
+    maintenanceRequests,
+    residenceOperationsReport,
+    scanForApartments,
+    tenantApply,
+    approveTenant,
+    rejectTenant,
+    terminateLease,
+    assignMaintenance,
+    completeMaintenance,
+    cancelMaintenance,
+    updateRentPrice,
+    updateUtilityRate,
+    addApartmentUnit,
+    updateApartmentUnit,
+    removeApartmentUnit,
+    setBuildingType,
+    applicationFee,
+    petDepositRate,
+    securityDepositMonths,
+    lateFeeGraceDays,
+    lateFeeRate,
+    rentPrices,
+    utilityRates,
   } = useHotelStore();
 
-  const [activeTab, setActiveTab] = useState<'operations' | 'chain' | 'staff' | 'guests' | 'presets' | 'categories' | 'bonuses' | 'settings'>('operations');
+  const [activeTab, setActiveTab] = useState<'operations' | 'chain' | 'staff' | 'guests' | 'presets' | 'categories' | 'bonuses' | 'settings' | 'residences'>('operations');
 
   // New Hotel Form State
   const [newHotelName, setNewHotelName] = useState('');
@@ -354,6 +396,19 @@ export const Management: React.FC = () => {
             <Gift size={14} />
             Loyalty Clubs
           </button>
+          {buildingType === 'residences' && (
+            <button 
+              onClick={() => setActiveTab('residences')}
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
+                activeTab === 'residences' 
+                  ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/10' 
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
+              }`}
+            >
+              <Home size={14} />
+              Residences
+            </button>
+          )}
           <button 
             onClick={() => setActiveTab('settings')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
@@ -1599,6 +1654,246 @@ export const Management: React.FC = () => {
                 ))}
               </div>
             </div>
+          </div>
+        )}
+
+        {/* Tab: Residences */}
+        {activeTab === 'residences' && buildingType === 'residences' && (
+          <div className="space-y-6">
+            {/* Residence Stats */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Occupancy</p>
+                <p className="text-lg sm:text-2xl font-black text-sky-400 mt-0.5">{residenceOperationsReport?.occupancyRate ?? 0}%</p>
+              </div>
+              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vacancy</p>
+                <p className="text-lg sm:text-2xl font-black text-red-400 mt-0.5">{residenceOperationsReport?.vacancyRate ?? 0}%</p>
+              </div>
+              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">NOI</p>
+                <p className="text-lg sm:text-2xl font-black text-emerald-400 mt-0.5">${(residenceOperationsReport?.netOperatingIncome ?? 0).toLocaleString()}</p>
+              </div>
+              <div className="bg-slate-900/60 p-4 rounded-xl border border-slate-800">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Tenants</p>
+                <p className="text-lg sm:text-2xl font-black text-white mt-0.5">{tenants.filter(t => t.status === 'active').length} / {apartmentUnits.length}</p>
+              </div>
+            </div>
+
+            {/* Scan Apartments */}
+            <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-black text-white flex items-center gap-2">
+                    <Search size={16} className="text-amber-500" />
+                    Apartment Discovery
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">Scan your floors to detect apartment units from bed/bathroom layouts.</p>
+                </div>
+                <button
+                  onClick={scanForApartments}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-lg text-xs font-black transition-colors"
+                >
+                  Scan Floors
+                </button>
+              </div>
+              {apartmentUnits.length > 0 && (
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {apartmentUnits.map((unit) => (
+                    <div key={unit.id} className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-xs font-black text-white">{unit.label}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                          unit.status === 'vacant' ? 'bg-red-950 text-red-400' :
+                          unit.status === 'occupied' ? 'bg-emerald-950 text-emerald-400' :
+                          unit.status === 'maintenance' ? 'bg-amber-950 text-amber-400' :
+                          'bg-slate-800 text-slate-400'
+                        }`}>
+                          {unit.status}
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-500">Floor {unit.floorIndex} · {unit.beds} bed · {unit.bathrooms} bath · {unit.sqft} sqft</p>
+                      <p className="text-[10px] text-slate-500">Rent: ${unit.marketRent}/mo</p>
+                      {unit.status === 'vacant' && (
+                        <button
+                          onClick={() => {
+                            const name = prompt('Applicant name:');
+                            if (name) tenantApply(unit.id, { name });
+                          }}
+                          className="mt-2 w-full px-2 py-1 bg-slate-800 hover:bg-emerald-600 text-slate-300 hover:text-white rounded text-[10px] font-bold transition-colors"
+                        >
+                          New Application
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Tenants & Applications */}
+            <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+              <div className="p-5 border-b border-slate-800">
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <Users size={16} className="text-sky-400" />
+                  Tenant Directory
+                </h3>
+              </div>
+              <div className="p-5">
+                {tenants.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-4">No tenants yet. Scan for apartments and accept applications to get started.</p>
+                ) : (
+                  <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                    {tenants.map((tenant) => {
+                      const lease = leases.find(l => l.tenantId === tenant.id && l.status === 'active');
+                      const unit = apartmentUnits.find(u => u.id === tenant.apartmentId);
+                      return (
+                        <div key={tenant.id} className="flex flex-wrap items-center justify-between gap-2 bg-slate-950 rounded-lg p-3 border border-slate-800">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-slate-800 flex items-center justify-center text-xs font-bold text-white">
+                              {tenant.name.split(' ').map(n => n[0]).join('')}
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold text-white">{tenant.name}</p>
+                              <p className="text-[10px] text-slate-500">{tenant.occupation} · {tenant.apartmentId}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
+                              tenant.status === 'active' ? 'bg-emerald-950 text-emerald-400' :
+                              tenant.status === 'applied' ? 'bg-amber-950 text-amber-400' :
+                              tenant.status === 'notice-given' ? 'bg-red-950 text-red-400' :
+                              'bg-slate-800 text-slate-400'
+                            }`}>
+                              {tenant.status}
+                            </span>
+                            {tenant.status === 'applied' && (
+                              <div className="flex gap-1">
+                                <button
+                                  onClick={() => approveTenant(tenant.id)}
+                                  className="p-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded"
+                                  title="Approve"
+                                >
+                                  <Check size={12} />
+                                </button>
+                                <button
+                                  onClick={() => rejectTenant(tenant.id)}
+                                  className="p-1 bg-red-600 hover:bg-red-700 text-white rounded"
+                                  title="Reject"
+                                >
+                                  <X size={12} />
+                                </button>
+                              </div>
+                            )}
+                            {tenant.status === 'active' && (
+                              <button
+                                onClick={() => {
+                                  if (window.confirm('Terminate this lease? Tenant will be evicted.')) {
+                                    terminateLease(tenant.id);
+                                  }
+                                }}
+                                className="p-1 bg-red-600 hover:bg-red-700 text-white rounded"
+                                title="Terminate Lease"
+                              >
+                                <XCircle size={12} />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Maintenance Requests */}
+            <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+              <div className="p-5 border-b border-slate-800">
+                <h3 className="text-sm font-black text-white flex items-center gap-2">
+                  <Wrench size={16} className="text-amber-500" />
+                  Maintenance Requests
+                  <span className="text-[10px] font-bold text-slate-500 normal-case">
+                    ({maintenanceRequests.filter(m => m.status === 'open' || m.status === 'in-progress').length} open)
+                  </span>
+                </h3>
+              </div>
+              <div className="p-5">
+                {maintenanceRequests.length === 0 ? (
+                  <p className="text-xs text-slate-500 text-center py-4">No maintenance requests yet. Requests will appear when tenants submit them.</p>
+                ) : (
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {maintenanceRequests.slice(0, 20).map((req) => {
+                      const tenant = tenants.find(t => t.id === req.tenantId);
+                      const unit = apartmentUnits.find(u => u.id === req.apartmentId);
+                      return (
+                        <div key={req.id} className="flex flex-wrap items-center justify-between gap-2 bg-slate-950 rounded-lg p-3 border border-slate-800">
+                          <div className="flex-1">
+                            <p className="text-xs font-bold text-white">{req.category} · {req.priority}</p>
+                            <p className="text-[10px] text-slate-500">{tenant?.name || 'Unknown'} · {unit?.label || req.apartmentId}</p>
+                            <p className="text-[10px] text-slate-500">Status: {req.status} · Submitted: D{req.submittedDay}</p>
+                          </div>
+                          <div className="flex gap-1">
+                            {req.status === 'open' && (
+                              <>
+                                <button
+                                  onClick={() => assignMaintenance(req.id, staff[0]?.id || '')}
+                                  className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white rounded text-[10px] font-bold"
+                                >
+                                  Assign
+                                </button>
+                                <button
+                                  onClick={() => completeMaintenance(req.id)}
+                                  className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold"
+                                >
+                                  Complete
+                                </button>
+                              </>
+                            )}
+                            {req.status === 'assigned' && (
+                              <button
+                                onClick={() => completeMaintenance(req.id)}
+                                className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded text-[10px] font-bold"
+                              >
+                                Complete
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Residence Financials */}
+            {residenceOperationsReport && (
+              <div className="bg-slate-900 rounded-xl border border-slate-800 p-5">
+                <h3 className="text-sm font-black text-white flex items-center gap-2 mb-4">
+                  <DollarIcon size={16} className="text-emerald-400" />
+                  Residence Financials
+                </h3>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Rent Collected</p>
+                    <p className="text-sm font-black text-emerald-400">${residenceOperationsReport.monthlyRentCollected.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Late Fees</p>
+                    <p className="text-sm font-black text-amber-400">${residenceOperationsReport.lateFeesCollected.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Maint. Costs</p>
+                    <p className="text-sm font-black text-red-400">${residenceOperationsReport.maintenanceCosts.toLocaleString()}</p>
+                  </div>
+                  <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
+                    <p className="text-[10px] text-slate-500 font-bold uppercase">Avg. Rent</p>
+                    <p className="text-sm font-black text-white">${residenceOperationsReport.averageRent}</p>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 

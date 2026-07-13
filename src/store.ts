@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Floor, TileType, ViewMode, Label, AppMode, StaffNPC, GuestNPC, HotelData, StaffTask, RoomRates, GuestState, FloorTemplate, Milestone, Brand, HotelChain, RoomCategory, BonusProgram, OperationsReport, ViewportSync, SupplyChain, EmergencyState, GuestSpendingPattern, StaffShift, GuestLedgerEntry } from './types';
+import { Floor, TileType, ViewMode, Label, AppMode, StaffNPC, GuestNPC, HotelData, StaffTask, RoomRates, GuestState, FloorTemplate, Milestone, Brand, HotelChain, RoomCategory, BonusProgram, OperationsReport, ViewportSync, SupplyChain, EmergencyState, GuestSpendingPattern, StaffShift, GuestLedgerEntry, TenantNPC, Lease, MaintenanceRequest, ApartmentUnit, ResidenceOperationsReport, TenantStatus } from './types';
 import { PRESETS } from './presets';
 import { DEFAULT_BRANDS, DEFAULT_ROOM_CATEGORIES, HOTEL_CHAINS } from './db';
 import { auth, db } from './firebase';
@@ -8,6 +8,7 @@ import { User, signInWithRedirect, signOut } from 'firebase/auth';
 import { googleProvider } from './firebase';
 import confetti from 'canvas-confetti';
 import { buildOperationsReport, getDayPhase, getGuestSpawnChance, calculateDemandScore, calculateStarRating, countRoomInventory, countBedUnitsInGrid } from './operations';
+import { scanApartmentsFromFloors, generateTenantName, generateTenantOccupation, calculateTenantSatisfaction, processResidenceTick, buildResidenceOperationsReport } from './residential-manager';
 
 const GRID_SIZE = 20;
 const LOCAL_SAVE_KEY = 'archhotel_windows_save';
@@ -45,6 +46,21 @@ const syncActiveHotelHelper = (state: any) => {
         marketingBudget: state.marketingBudget,
         operationsReport: state.operationsReport,
         propertyAppreciationRate: state.propertyAppreciationRate,
+        buildingType: state.buildingType,
+        tenants: state.tenants,
+        leases: state.leases,
+        apartmentUnits: state.apartmentUnits,
+        maintenanceRequests: state.maintenanceRequests,
+        residenceOperationsReport: state.residenceOperationsReport,
+        residenceHistory: state.residenceHistory,
+        totalResidentsServed: state.totalResidentsServed,
+        rentPrices: state.rentPrices,
+        utilityRates: state.utilityRates,
+        petDepositRate: state.petDepositRate,
+        securityDepositMonths: state.securityDepositMonths,
+        lateFeeGraceDays: state.lateFeeGraceDays,
+        lateFeeRate: state.lateFeeRate,
+        applicationFee: state.applicationFee,
       };
     }
     return h;
@@ -279,6 +295,21 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
       guestSpawnRatePerSecond: (data.guestSpawnRatePerSecond as number) || 10,
       gameSpeed: (data.gameSpeed as number) || 1,
       guestLedger: (data.guestLedger as GuestLedgerEntry[]) || [],
+      buildingType: ((data.buildingType as string) === 'residences' ? 'residences' : 'hotel'),
+      tenants: (data.tenants as TenantNPC[]) || [],
+      leases: (data.leases as Lease[]) || [],
+      apartmentUnits: (data.apartmentUnits as ApartmentUnit[]) || [],
+      maintenanceRequests: (data.maintenanceRequests as MaintenanceRequest[]) || [],
+      residenceOperationsReport: (data.residenceOperationsReport as ResidenceOperationsReport) || null,
+      residenceHistory: (data.residenceHistory as ResidenceOperationsReport[]) || [],
+      totalResidentsServed: (data.totalResidentsServed as number) || 0,
+      rentPrices: (data.rentPrices as Record<string, number>) || {},
+      utilityRates: (data.utilityRates as Record<string, number>) || { electricity: 0.12, water: 0.04, gas: 0.03, internet: 0.05 },
+      petDepositRate: (data.petDepositRate as number) ?? 0.25,
+      securityDepositMonths: (data.securityDepositMonths as number) ?? 1,
+      lateFeeGraceDays: (data.lateFeeGraceDays as number) ?? 5,
+      lateFeeRate: (data.lateFeeRate as number) ?? 0.05,
+      applicationFee: (data.applicationFee as number) ?? 50,
     });
     return true;
   }
@@ -295,13 +326,27 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
       roomRates: (data.roomRates as RoomRates) || { standard: 50, suite: 120 },
       totalGuestsServed: (data.totalGuestsServed as number) || 0,
       milestones: (data.milestones as Milestone[]) || getInitialMilestones(),
+      buildingType: ((data.buildingType as string) === 'residences' ? 'residences' : 'hotel'),
+      tenants: (data.tenants as TenantNPC[]) || [],
+      leases: (data.leases as Lease[]) || [],
+      apartmentUnits: (data.apartmentUnits as ApartmentUnit[]) || [],
+      maintenanceRequests: (data.maintenanceRequests as MaintenanceRequest[]) || [],
+      residenceOperationsReport: (data.residenceOperationsReport as ResidenceOperationsReport) || null,
+      residenceHistory: (data.residenceHistory as ResidenceOperationsReport[]) || [],
+      totalResidentsServed: (data.totalResidentsServed as number) || 0,
+      rentPrices: (data.rentPrices as Record<string, number>) || {},
+      utilityRates: (data.utilityRates as Record<string, number>) || { electricity: 0.12, water: 0.04, gas: 0.03, internet: 0.05 },
+      petDepositRate: (data.petDepositRate as number) ?? 0.25,
+      securityDepositMonths: (data.securityDepositMonths as number) ?? 1,
+      lateFeeGraceDays: (data.lateFeeGraceDays as number) ?? 5,
+      lateFeeRate: (data.lateFeeRate as number) ?? 0.05,
+      applicationFee: (data.applicationFee as number) ?? 50,
     };
     set({
       chainName: 'Marriott & Radisson Hospitality Group',
       hotels: [legacyHotel],
       activeHotelId: 'h-legacy',
       activeHotelBrandId: 'b-budget',
-      customBrands: [],
       floors: legacyHotel.floors,
       money: legacyHotel.money,
       staff: legacyHotel.staff,
@@ -310,14 +355,29 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
       totalGuestsServed: legacyHotel.totalGuestsServed,
       milestones: legacyHotel.milestones,
       activeFloorIndex: 0,
+      buildingType: legacyHotel.buildingType || 'hotel',
+      tenants: legacyHotel.tenants || [],
+      leases: legacyHotel.leases || [],
+      apartmentUnits: legacyHotel.apartmentUnits || [],
+      maintenanceRequests: legacyHotel.maintenanceRequests || [],
+      residenceOperationsReport: legacyHotel.residenceOperationsReport || null,
+      residenceHistory: legacyHotel.residenceHistory || [],
+      totalResidentsServed: legacyHotel.totalResidentsServed || 0,
+      rentPrices: legacyHotel.rentPrices || {},
+      utilityRates: legacyHotel.utilityRates || { electricity: 0.12, water: 0.04, gas: 0.03, internet: 0.05 },
+      petDepositRate: legacyHotel.petDepositRate ?? 0.25,
+      securityDepositMonths: legacyHotel.securityDepositMonths ?? 1,
+      lateFeeGraceDays: legacyHotel.lateFeeGraceDays ?? 5,
+      lateFeeRate: legacyHotel.lateFeeRate ?? 0.05,
+      applicationFee: legacyHotel.applicationFee ?? 50,
     });
     return true;
   }
 
-  return false;
-}
+   return false;
+ }
 
-interface HotelStore {
+ interface HotelStore {
   user: User | null;
   floors: Floor[];
   money: number;
@@ -347,6 +407,23 @@ interface HotelStore {
   marketingBudget: number;
   operationsReport: OperationsReport | null;
   operationsHistory: OperationsReport[];
+
+  // Residence-specific state
+  buildingType: 'hotel' | 'residences';
+  tenants: TenantNPC[];
+  leases: Lease[];
+  apartmentUnits: ApartmentUnit[];
+  maintenanceRequests: MaintenanceRequest[];
+  residenceOperationsReport: ResidenceOperationsReport | null;
+  residenceHistory: ResidenceOperationsReport[];
+  totalResidentsServed: number;
+  rentPrices: Record<string, number>;
+  utilityRates: Record<string, number>;
+  petDepositRate: number;
+  securityDepositMonths: number;
+  lateFeeGraceDays: number;
+  lateFeeRate: number;
+  applicationFee: number;
 
   // Chain-level actions
   setChainName: (name: string) => void;
@@ -443,6 +520,23 @@ interface HotelStore {
   duplicateFloor: (floorIndex: number) => void;
   getFireSafetyRating: () => number;
   setRoomCategories: (categories: RoomCategory[]) => void;
+
+  // Residence actions
+  setBuildingType: (type: 'hotel' | 'residences') => void;
+  processResidences: () => void;
+  tenantApply: (apartmentId: string, tenantData: Partial<TenantNPC>) => void;
+  approveTenant: (tenantId: string) => void;
+  rejectTenant: (tenantId: string) => void;
+  terminateLease: (tenantId: string) => void;
+  assignMaintenance: (requestId: string, staffId: string) => void;
+  completeMaintenance: (requestId: string) => void;
+  cancelMaintenance: (requestId: string) => void;
+  updateRentPrice: (categoryId: string, price: number) => void;
+  updateUtilityRate: (key: string, rate: number) => void;
+  addApartmentUnit: (unit: ApartmentUnit) => void;
+  updateApartmentUnit: (id: string, data: Partial<ApartmentUnit>) => void;
+  removeApartmentUnit: (id: string) => void;
+  scanForApartments: () => void;
 }
 
 export const useHotelStore = create<HotelStore>((set, get) => ({
@@ -561,6 +655,23 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   guestLedger: [],
   gameSpeed: 1,
 
+  // Residence-specific state
+  buildingType: 'hotel',
+  tenants: [],
+  leases: [],
+  apartmentUnits: [],
+  maintenanceRequests: [],
+  residenceOperationsReport: null,
+  residenceHistory: [],
+  totalResidentsServed: 0,
+  rentPrices: {},
+  utilityRates: { electricity: 0.12, water: 0.04, gas: 0.03, internet: 0.05 },
+  petDepositRate: 0.25,
+  securityDepositMonths: 1,
+  lateFeeGraceDays: 5,
+  lateFeeRate: 0.05,
+  applicationFee: 50,
+
   setChainName: (name) => set({ chainName: name }),
 
   setTileTexture: (x, y, textureId) => set((state) => {
@@ -568,32 +679,6 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     const newMap = { ...(state.textureMap || {}) };
     if (!textureId) delete newMap[key]; else newMap[key] = textureId;
     return { textureMap: newMap } as any;
-  }),
-
-  setActiveHotel: (hotelId) => set((state) => {
-    const syncedHotels = syncActiveHotelHelper(state);
-    const target = syncedHotels.find(h => h.id === hotelId);
-    if (!target) return state;
-
-    return {
-      hotels: syncedHotels,
-      activeHotelId: hotelId,
-      activeHotelBrandId: target.brandId,
-      floors: target.floors,
-      money: target.money,
-      staff: target.staff,
-      guests: target.guests,
-      roomRates: target.roomRates,
-      roomCategories: target.roomCategories || DEFAULT_ROOM_CATEGORIES,
-      bonusPrograms: target.bonusPrograms || DEFAULT_BONUS_PROGRAMS,
-      activeBonusProgramId: target.activeBonusProgramId || null,
-      totalGuestsServed: target.totalGuestsServed,
-      milestones: target.milestones,
-      marketId: target.marketId || 'urban-business',
-      marketingBudget: target.marketingBudget ?? 75,
-      operationsReport: target.operationsReport || null,
-      activeFloorIndex: 0
-    };
   }),
 
   createHotel: (name, brandId) => set((state) => {
@@ -622,6 +707,21 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       milestones: getInitialMilestones(),
       marketId: state.marketId || 'urban-business',
       marketingBudget: 40,
+      buildingType: state.buildingType || 'hotel',
+      tenants: [],
+      leases: [],
+      apartmentUnits: [],
+      maintenanceRequests: [],
+      residenceOperationsReport: null,
+      residenceHistory: [],
+      totalResidentsServed: 0,
+      rentPrices: {},
+      utilityRates: { electricity: 0.12, water: 0.04, gas: 0.03, internet: 0.05 },
+      petDepositRate: 0.25,
+      securityDepositMonths: 1,
+      lateFeeGraceDays: 5,
+      lateFeeRate: 0.05,
+      applicationFee: 50,
     };
 
     return {
@@ -638,7 +738,22 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       activeBonusProgramId: null,
       totalGuestsServed: 0,
       milestones: getInitialMilestones(),
-      activeFloorIndex: 0
+      activeFloorIndex: 0,
+      buildingType: state.buildingType || 'hotel',
+      tenants: [],
+      leases: [],
+      apartmentUnits: [],
+      maintenanceRequests: [],
+      residenceOperationsReport: null,
+      residenceHistory: [],
+      totalResidentsServed: 0,
+      rentPrices: {},
+      utilityRates: { electricity: 0.12, water: 0.04, gas: 0.03, internet: 0.05 },
+      petDepositRate: 0.25,
+      securityDepositMonths: 1,
+      lateFeeGraceDays: 5,
+      lateFeeRate: 0.05,
+      applicationFee: 50,
     };
   }),
 
@@ -797,6 +912,20 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         guestSpawnRatePerSecond: state.guestSpawnRatePerSecond,
         gameSpeed: state.gameSpeed,
         guestLedger: state.guestLedger,
+        buildingType: state.buildingType,
+        tenants: state.tenants,
+        leases: state.leases,
+        apartmentUnits: state.apartmentUnits,
+        maintenanceRequests: state.maintenanceRequests,
+        residenceHistory: state.residenceHistory,
+        totalResidentsServed: state.totalResidentsServed,
+        rentPrices: state.rentPrices,
+        utilityRates: state.utilityRates,
+        petDepositRate: state.petDepositRate,
+        securityDepositMonths: state.securityDepositMonths,
+        lateFeeGraceDays: state.lateFeeGraceDays,
+        lateFeeRate: state.lateFeeRate,
+        applicationFee: state.applicationFee,
         saveVersion: 1,
         savedAt: new Date().toISOString(),
       };
@@ -833,6 +962,20 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
           guestSpawnRatePerSecond: (data.guestSpawnRatePerSecond as number) || 10,
           gameSpeed: (data.gameSpeed as number) || 1,
           guestLedger: (data.guestLedger as GuestLedgerEntry[]) || [],
+          buildingType: ((data.buildingType as string) === 'residences' ? 'residences' : 'hotel'),
+          tenants: (data.tenants as TenantNPC[]) || [],
+          leases: (data.leases as Lease[]) || [],
+          apartmentUnits: (data.apartmentUnits as ApartmentUnit[]) || [],
+          maintenanceRequests: (data.maintenanceRequests as MaintenanceRequest[]) || [],
+          residenceHistory: (data.residenceHistory as ResidenceOperationsReport[]) || [],
+          totalResidentsServed: (data.totalResidentsServed as number) || 0,
+          rentPrices: (data.rentPrices as Record<string, number>) || {},
+          utilityRates: (data.utilityRates as Record<string, number>) || { electricity: 0.12, water: 0.04, gas: 0.03, internet: 0.05 },
+          petDepositRate: (data.petDepositRate as number) ?? 0.25,
+          securityDepositMonths: (data.securityDepositMonths as number) ?? 1,
+          lateFeeGraceDays: (data.lateFeeGraceDays as number) ?? 5,
+          lateFeeRate: (data.lateFeeRate as number) ?? 0.05,
+          applicationFee: (data.applicationFee as number) ?? 50,
         });
       }
       return loaded;
@@ -983,8 +1126,41 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       emergency: newEmergency,
     });
 
+    let residenceUpdate: any = {};
+    if (state.buildingType === 'residences') {
+      const resResult = processResidenceTick({
+        floors: state.floors,
+        tenants: state.tenants,
+        leases: state.leases,
+        apartmentUnits: state.apartmentUnits,
+        maintenanceRequests: state.maintenanceRequests,
+        staff: state.staff,
+        gameDay,
+        gameHour,
+        money: newMoney,
+        buildingType: state.buildingType,
+        previousReport: state.residenceOperationsReport,
+        inflationRate,
+        applicationFee: state.applicationFee,
+        petDepositRate: state.petDepositRate,
+        securityDepositMonths: state.securityDepositMonths,
+        lateFeeGraceDays: state.lateFeeGraceDays,
+        lateFeeRate: state.lateFeeRate,
+        rentPrices: state.rentPrices,
+        utilityRates: state.utilityRates,
+      });
+      residenceUpdate = resResult;
+      Object.assign(synced, {
+        tenants: resResult.tenants,
+        leases: resResult.leases,
+        apartmentUnits: resResult.apartmentUnits,
+        maintenanceRequests: resResult.maintenanceRequests,
+        residenceOperationsReport: resResult.residenceOperationsReport,
+      });
+    }
+
     return {
-      money: newMoney,
+      money: residenceUpdate.money ?? newMoney,
       gameDay,
       gameHour,
       inflationRate,
@@ -994,6 +1170,12 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       operationsHistory,
       supplyChain: newSupplyChain,
       emergency: newEmergency,
+      tenants: residenceUpdate.tenants || state.tenants,
+      leases: residenceUpdate.leases || state.leases,
+      apartmentUnits: residenceUpdate.apartmentUnits || state.apartmentUnits,
+      maintenanceRequests: residenceUpdate.maintenanceRequests || state.maintenanceRequests,
+      residenceOperationsReport: residenceUpdate.residenceOperationsReport || state.residenceOperationsReport,
+      totalResidentsServed: (state.totalResidentsServed || 0) + (residenceUpdate.totalResidentsServed || 0),
       hotels: synced,
     };
   }),
@@ -1356,15 +1538,32 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         }
       }
       
-      // Move towards target
+      // Move towards target with collision avoidance
       if (g.targetX !== undefined && g.targetY !== undefined) {
         const dx = g.targetX - g.x;
         const dy = g.targetY - g.y;
         const dist = Math.sqrt(dx*dx + dy*dy);
         
         if (dist > 0.5) {
-          g.x += (dx / dist) * 0.5;
-          g.y += (dy / dist) * 0.5;
+          const nx = g.x + (dx / dist) * 0.5;
+          const ny = g.y + (dy / dist) * 0.5;
+          const floorGrid = state.floors[g.floorIndex]?.grid;
+          const isBlocked = (px: number, py: number) => {
+            if (!floorGrid) return false;
+            const ix = Math.round(px);
+            const iy = Math.round(py);
+            if (ix < 0 || iy < 0 || ix >= GRID_SIZE || iy >= GRID_SIZE) return true;
+            const t = floorGrid[iy]?.[ix];
+            return t === 'wall' || t === 'reception';
+          };
+          if (!isBlocked(nx, ny)) {
+            g.x = nx;
+            g.y = ny;
+          } else if (!isBlocked(nx, g.y)) {
+            g.x = nx;
+          } else if (!isBlocked(g.x, ny)) {
+            g.y = ny;
+          }
         } else {
           // Reached target
           if (g.state === 'checking-in') {
@@ -2059,4 +2258,266 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
 
     return maxScore > 0 ? Math.round((totalScore / maxScore) * 100) : 0;
   },
+
+  setBuildingType: (type) => set({ buildingType: type }),
+
+  processResidences: () => set((state) => {
+    if (state.buildingType !== 'residences') return state;
+    const result = processResidenceTick({
+      floors: state.floors,
+      tenants: state.tenants,
+      leases: state.leases,
+      apartmentUnits: state.apartmentUnits,
+      maintenanceRequests: state.maintenanceRequests,
+      staff: state.staff,
+      gameDay: state.gameDay,
+      gameHour: state.gameHour,
+      money: state.money,
+      buildingType: state.buildingType,
+      previousReport: state.residenceOperationsReport,
+      inflationRate: state.inflationRate,
+      applicationFee: state.applicationFee,
+      petDepositRate: state.petDepositRate,
+      securityDepositMonths: state.securityDepositMonths,
+      lateFeeGraceDays: state.lateFeeGraceDays,
+      lateFeeRate: state.lateFeeRate,
+      rentPrices: state.rentPrices,
+      utilityRates: state.utilityRates,
+    });
+    const synced = syncActiveHotelHelper({ ...state, ...result });
+    return { ...result, hotels: synced };
+  }),
+
+  scanForApartments: () => set((state) => {
+    const scanned = scanApartmentsFromFloors(state.floors, state.roomCategories || DEFAULT_ROOM_CATEGORIES);
+    const existingIds = new Set((state.apartmentUnits || []).map(u => u.id));
+    const newUnits: ApartmentUnit[] = scanned
+      .filter(u => !existingIds.has(u.id))
+      .map((u) => ({
+        id: u.id,
+        label: u.label,
+        floorIndex: u.floorIndex,
+        roomCategoryId: u.roomCategoryId,
+        x: u.x,
+        y: u.y,
+        beds: u.beds,
+        bathrooms: u.bathrooms,
+        hasKitchen: u.hasKitchen,
+        hasBalcony: u.hasBalcony,
+        hasParking: u.hasParking,
+        petFriendly: u.petFriendly,
+        furnished: u.furnished,
+        sqft: u.sqft,
+        marketRent: u.marketRent,
+        status: 'vacant',
+      }));
+    const updatedUnits = [...(state.apartmentUnits || []), ...newUnits];
+    const synced = syncActiveHotelHelper({ ...state, apartmentUnits: updatedUnits });
+    return { apartmentUnits: updatedUnits, hotels: synced };
+  }),
+
+  tenantApply: (apartmentId, tenantData) => set((state) => {
+    const unit = state.apartmentUnits.find(u => u.id === apartmentId);
+    if (!unit || unit.status !== 'vacant') return state;
+
+    const tenant: TenantNPC = {
+      id: `tenant-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      name: tenantData.name || generateTenantName(),
+      email: tenantData.email || '',
+      phone: tenantData.phone || '',
+      occupation: tenantData.occupation || generateTenantOccupation(),
+      income: tenantData.income || 5000 + Math.floor(Math.random() * 10000),
+      creditScore: tenantData.creditScore || 600 + Math.floor(Math.random() * 200),
+      hasPets: tenantData.hasPets || false,
+      petType: tenantData.petType,
+      moveInDay: state.gameDay,
+      leaseEndDay: state.gameDay + 365,
+      apartmentId,
+      floorIndex: unit.floorIndex,
+      status: 'applied',
+      satisfaction: 75,
+      maintenanceRequestsCount: 0,
+      paymentsOnTime: 0,
+      paymentsLate: 0,
+      x: unit.x,
+      y: unit.y,
+      targetX: unit.x,
+      targetY: unit.y,
+      color: `hsl(${Math.random() * 360}, 70%, 50%)`,
+    };
+
+    const updatedTenants = [...state.tenants, tenant];
+    const updatedUnit = { ...unit, status: 'reserved' as const, tenantId: tenant.id };
+    const updatedUnits = state.apartmentUnits.map(u => u.id === apartmentId ? updatedUnit : u);
+    const synced = syncActiveHotelHelper({ ...state, tenants: updatedTenants, apartmentUnits: updatedUnits });
+    return { tenants: updatedTenants, apartmentUnits: updatedUnits, hotels: synced };
+  }),
+
+  approveTenant: (tenantId) => set((state) => {
+    const tenant = state.tenants.find(t => t.id === tenantId);
+    if (!tenant) return state;
+
+    const unit = state.apartmentUnits.find(u => u.id === tenant.apartmentId);
+    if (!unit) return state;
+
+    const monthlyRent = state.rentPrices[unit.roomCategoryId] || unit.marketRent;
+    const securityDeposit = Math.round(monthlyRent * (state.securityDepositMonths || 1));
+    const petDeposit = tenant.hasPets ? Math.round(monthlyRent * (state.petDepositRate || 0.25)) : 0;
+
+    const lease: Lease = {
+      id: `lease-${Date.now()}`,
+      tenantId,
+      apartmentId: unit.id,
+      floorIndex: unit.floorIndex,
+      startDay: state.gameDay,
+      startHour: state.gameHour,
+      termDays: 365,
+      monthlyRent,
+      securityDeposit,
+      petDeposit,
+      isPetFriendly: unit.petFriendly,
+      isFurnished: unit.furnished,
+      includesUtilities: false,
+      status: 'active',
+      lateFeeRate: state.lateFeeRate || 0.05,
+      lateFeeGraceDays: state.lateFeeGraceDays || 5,
+      nextPaymentDay: state.gameDay + 30,
+      lastPaymentDay: state.gameDay,
+      paymentsMissed: 0,
+    };
+
+    const updatedTenant = { ...tenant, status: 'active' as TenantStatus };
+    const updatedTenants = state.tenants.map(t => t.id === tenantId ? updatedTenant : t);
+    const updatedUnit = { ...unit, status: 'occupied' as const, tenantId: tenant.id, leaseId: lease.id };
+    const updatedUnits = state.apartmentUnits.map(u => u.id === unit.id ? updatedUnit : u);
+    const updatedLeases = [...state.leases, lease];
+
+    const totalDeposits = securityDeposit + petDeposit;
+    const synced = syncActiveHotelHelper({ ...state, tenants: updatedTenants, apartmentUnits: updatedUnits, leases: updatedLeases, money: state.money + totalDeposits });
+    return { tenants: updatedTenants, apartmentUnits: updatedUnits, leases: updatedLeases, money: state.money + totalDeposits, hotels: synced };
+  }),
+
+  rejectTenant: (tenantId) => set((state) => {
+    const tenant = state.tenants.find(t => t.id === tenantId);
+    if (!tenant) return state;
+
+    const updatedTenants = state.tenants.map(t => t.id === tenantId ? { ...t, status: 'rejected' as TenantStatus } : t);
+    const updatedUnit = state.apartmentUnits.map(u => u.tenantId === tenantId ? { ...u, status: 'vacant' as const, tenantId: undefined, leaseId: undefined } : u);
+    const synced = syncActiveHotelHelper({ ...state, tenants: updatedTenants, apartmentUnits: updatedUnit });
+    return { tenants: updatedTenants, apartmentUnits: updatedUnit, hotels: synced };
+  }),
+
+  terminateLease: (tenantId) => set((state) => {
+    const tenant = state.tenants.find(t => t.id === tenantId);
+    if (!tenant) return state;
+
+    const lease = state.leases.find(l => l.tenantId === tenantId && l.status === 'active');
+    if (lease) {
+      const updatedLeases = state.leases.map(l => l.tenantId === tenantId ? { ...l, status: 'terminated' as const } : l);
+      const updatedTenant = { ...tenant, status: 'moved-out' as TenantStatus };
+      const updatedTenants = state.tenants.map(t => t.id === tenantId ? updatedTenant : t);
+      const updatedUnit = state.apartmentUnits.map(u => u.tenantId === tenantId ? { ...u, status: 'vacant' as const, tenantId: undefined, leaseId: undefined } : u);
+      const synced = syncActiveHotelHelper({ ...state, tenants: updatedTenants, apartmentUnits: updatedUnit, leases: updatedLeases });
+      return { tenants: updatedTenants, apartmentUnits: updatedUnit, leases: updatedLeases, hotels: synced };
+    }
+
+    const updatedTenant = { ...tenant, status: 'moved-out' as TenantStatus };
+    const updatedTenants = state.tenants.map(t => t.id === tenantId ? updatedTenant : t);
+    const updatedUnit = state.apartmentUnits.map(u => u.tenantId === tenantId ? { ...u, status: 'vacant' as const, tenantId: undefined, leaseId: undefined } : u);
+    const synced = syncActiveHotelHelper({ ...state, tenants: updatedTenants, apartmentUnits: updatedUnit });
+    return { tenants: updatedTenants, apartmentUnits: updatedUnit, hotels: synced };
+  }),
+
+  assignMaintenance: (requestId, staffId) => set((state) => {
+    const updated = state.maintenanceRequests.map(m => m.id === requestId ? { ...m, status: 'assigned' as const, assignedStaffId: staffId } : m);
+    const synced = syncActiveHotelHelper({ ...state, maintenanceRequests: updated });
+    return { maintenanceRequests: updated, hotels: synced };
+  }),
+
+  completeMaintenance: (requestId) => set((state) => {
+    const request = state.maintenanceRequests.find(m => m.id === requestId);
+    if (!request) return state;
+
+    const cost = 50 + Math.floor(Math.random() * 200);
+    const updated = state.maintenanceRequests.map(m => m.id === requestId ? { ...m, status: 'completed' as const, completedDay: state.gameDay, cost } : m);
+    const synced = syncActiveHotelHelper({ ...state, maintenanceRequests: updated, money: state.money - cost });
+    return { maintenanceRequests: updated, money: state.money - cost, hotels: synced };
+  }),
+
+  cancelMaintenance: (requestId) => set((state) => {
+    const updated = state.maintenanceRequests.map(m => m.id === requestId ? { ...m, status: 'cancelled' as const } : m);
+    const synced = syncActiveHotelHelper({ ...state, maintenanceRequests: updated });
+    return { maintenanceRequests: updated, hotels: synced };
+  }),
+
+  updateRentPrice: (categoryId, price) => set((state) => {
+    const updated = { ...(state.rentPrices || {}), [categoryId]: price };
+    const synced = syncActiveHotelHelper({ ...state, rentPrices: updated });
+    return { rentPrices: updated, hotels: synced };
+  }),
+
+  updateUtilityRate: (key, rate) => set((state) => {
+    const updated = { ...(state.utilityRates || {}), [key]: rate };
+    const synced = syncActiveHotelHelper({ ...state, utilityRates: updated });
+    return { utilityRates: updated, hotels: synced };
+  }),
+
+  addApartmentUnit: (unit) => set((state) => {
+    const updated = [...(state.apartmentUnits || []), unit];
+    const synced = syncActiveHotelHelper({ ...state, apartmentUnits: updated });
+    return { apartmentUnits: updated, hotels: synced };
+  }),
+
+  updateApartmentUnit: (id, data) => set((state) => {
+    const updated = state.apartmentUnits.map(u => u.id === id ? { ...u, ...data } : u);
+    const synced = syncActiveHotelHelper({ ...state, apartmentUnits: updated });
+    return { apartmentUnits: updated, hotels: synced };
+  }),
+
+  removeApartmentUnit: (id) => set((state) => {
+    const updated = state.apartmentUnits.filter(u => u.id !== id);
+    const synced = syncActiveHotelHelper({ ...state, apartmentUnits: updated });
+    return { apartmentUnits: updated, hotels: synced };
+  }),
+
+  setActiveHotel: (hotelId) => set((state) => {
+    const syncedHotels = syncActiveHotelHelper(state);
+    const target = syncedHotels.find(h => h.id === hotelId);
+    if (!target) return state;
+
+    return {
+      hotels: syncedHotels,
+      activeHotelId: hotelId,
+      activeHotelBrandId: target.brandId,
+      floors: target.floors,
+      money: target.money,
+      staff: target.staff,
+      guests: target.guests || [],
+      roomRates: target.roomRates,
+      roomCategories: target.roomCategories || DEFAULT_ROOM_CATEGORIES,
+      bonusPrograms: target.bonusPrograms || DEFAULT_BONUS_PROGRAMS,
+      activeBonusProgramId: target.activeBonusProgramId || null,
+      totalGuestsServed: target.totalGuestsServed || 0,
+      milestones: target.milestones,
+      marketId: target.marketId || 'urban-business',
+      marketingBudget: target.marketingBudget ?? 75,
+      operationsReport: target.operationsReport || null,
+      activeFloorIndex: 0,
+      buildingType: target.buildingType || 'hotel',
+      tenants: target.tenants || [],
+      leases: target.leases || [],
+      apartmentUnits: target.apartmentUnits || [],
+      maintenanceRequests: target.maintenanceRequests || [],
+      residenceOperationsReport: target.residenceOperationsReport || null,
+      residenceHistory: target.residenceHistory || [],
+      totalResidentsServed: target.totalResidentsServed || 0,
+      rentPrices: target.rentPrices || {},
+       utilityRates: target.utilityRates || { electricity: 0.12, water: 0.04, gas: 0.03, internet: 0.05 },
+       petDepositRate: target.petDepositRate ?? 0.25,
+       securityDepositMonths: target.securityDepositMonths ?? 1,
+       lateFeeGraceDays: target.lateFeeGraceDays ?? 5,
+       lateFeeRate: target.lateFeeRate ?? 0.05,
+       applicationFee: target.applicationFee ?? 50,
+     };
+   }),
 }));

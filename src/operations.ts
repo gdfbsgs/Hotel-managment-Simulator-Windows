@@ -391,6 +391,11 @@ export function countRoomInventory(floors: Floor[]) {
   let elevators = 0;
   let reception = 0;
   let totalTiles = 0;
+  let powerPlants = 0;
+  let spas = 0;
+  let pools = 0;
+  let restaurants = 0;
+  let arcades = 0;
 
   floors.forEach((floor) => {
     floor.grid.forEach((row) => {
@@ -399,6 +404,11 @@ export function countRoomInventory(floors: Floor[]) {
         if (cell === 'bathroom') bathrooms++;
         if (cell === 'elevator') elevators++;
         if (cell === 'reception') reception++;
+        if (cell === 'power_plant') powerPlants++;
+        if (cell === 'spa_tile') spas++;
+        if (cell === 'pool') pools++;
+        if (cell === 'restaurant') restaurants++;
+        if (cell === 'arcade') arcades++;
       });
     });
     bedUnits += countBedUnitsInGrid(floor.grid);
@@ -407,7 +417,7 @@ export function countRoomInventory(floors: Floor[]) {
   const rooms = bedUnits;
   const guestCapacity = bedUnits * 2;
 
-  return { beds: bedUnits, rooms, guestCapacity, bathrooms, elevators, reception, totalTiles, floors: floors.length };
+  return { beds: bedUnits, rooms, guestCapacity, bathrooms, elevators, reception, totalTiles, floors: floors.length, powerPlants, spas, pools, restaurants, arcades };
 }
 
 export function calculateStarRating(
@@ -509,30 +519,51 @@ export function calculateOperatingCosts(params: {
   inventory: ReturnType<typeof countRoomInventory>;
   inflationRate?: number;
   energyUsage?: number;
+  revenue?: number;
+  gameDay?: number;
 }) {
   const market = getMarket(params.marketId);
   const inflationRate = params.inflationRate ?? 0;
   const inflationMultiplier = 1 + inflationRate;
   const energyUsage = params.energyUsage ?? 0;
+  const revenue = params.revenue ?? 0;
+  const gameDay = params.gameDay ?? 0;
+
   const staffPayroll = Math.round(params.staff.reduce((acc, s) => acc + s.salary, 0) * inflationMultiplier);
+  const electricity = Math.round(
+    ((params.inventory.rooms * 18 + params.inventory.floors * 50 + params.inventory.powerPlants * -40 + params.inventory.spas * 25 + params.inventory.pools * 35 + params.inventory.restaurants * 30 + params.inventory.arcades * 15) * market.utilityRate) * inflationMultiplier
+  );
+  const water = Math.round(((params.inventory.bathrooms * 8 + params.inventory.rooms * 3 + params.guestCount * 4) * inflationMultiplier));
   const utilities = Math.round(
     ((params.inventory.totalTiles * 0.2 + params.inventory.floors * 60) * market.utilityRate + energyUsage * 0.3) * inflationMultiplier
   );
   const housekeeping = Math.round((params.guestCount * 6 + params.inventory.rooms * 1) * inflationMultiplier);
-  const maintenance = Math.round((params.inventory.elevators * 20 + params.inventory.floors * 15) * inflationMultiplier);
+  const maintenance = Math.round((params.inventory.elevators * 20 + params.inventory.floors * 15 + params.inventory.powerPlants * 30) * inflationMultiplier);
   const marketing = Math.round(params.marketingBudget * 0.6);
   const propertyTax = Math.round((params.inventory.floors * 40 + params.inventory.rooms * 6) * inflationMultiplier);
+  const incomeTax = Math.round(revenue * 0.12 * inflationMultiplier);
+  const roomTax = Math.round(params.guestCount * 8 * inflationMultiplier);
+  const wasteManagement = Math.round((50 + params.inventory.rooms * 2 + params.inventory.restaurants * 15) * inflationMultiplier);
+  const security = Math.round((params.inventory.floors * 25 + params.inventory.rooms * 3 + params.inventory.elevators * 10) * inflationMultiplier);
+  const staffTraining = Math.round(params.staff.length * 15 * inflationMultiplier);
   const insurance = Math.round((params.inventory.rooms * 3 + 60) * inflationMultiplier);
 
-  const total = staffPayroll + utilities + housekeeping + maintenance + marketing + propertyTax + insurance;
+  const total = staffPayroll + electricity + water + utilities + housekeeping + maintenance + marketing + propertyTax + incomeTax + roomTax + wasteManagement + security + staffTraining + insurance;
 
   return {
     staffPayroll,
+    electricity,
+    water,
     utilities,
     housekeeping,
     maintenance,
     marketing,
     propertyTax,
+    incomeTax,
+    roomTax,
+    wasteManagement,
+    security,
+    staffTraining,
     insurance,
     total,
   };
@@ -646,6 +677,8 @@ export function buildOperationsReport(params: {
     inventory,
     inflationRate: params.inflationRate ?? 0,
     energyUsage: (params.previousReport?.expenses?.utilities ?? 0) * 0.1,
+    revenue,
+    gameDay: params.gameDay,
   });
 
   const roomsSold = inRoom.length;

@@ -145,10 +145,17 @@ export interface BonusProgram {
 export interface OperationsExpenses {
   staffPayroll: number;
   utilities: number;
+  electricity: number;
+  water: number;
   housekeeping: number;
   maintenance: number;
   marketing: number;
   propertyTax: number;
+  incomeTax: number;
+  roomTax: number;
+  wasteManagement: number;
+  security: number;
+  staffTraining: number;
   insurance: number;
   total: number;
 }
@@ -202,6 +209,21 @@ export interface HotelData {
   marketingBudget?: number;
   operationsReport?: OperationsReport | null;
   propertyAppreciationRate?: number;
+  buildingType?: 'hotel' | 'residences';
+  tenants?: TenantNPC[];
+  leases?: Lease[];
+  apartmentUnits?: ApartmentUnit[];
+  maintenanceRequests?: MaintenanceRequest[];
+  residenceOperationsReport?: ResidenceOperationsReport | null;
+  residenceHistory?: ResidenceOperationsReport[];
+  totalResidentsServed?: number;
+  rentPrices?: Record<string, number>;
+  utilityRates?: Record<string, number>;
+  petDepositRate?: number;
+  securityDepositMonths?: number;
+  lateFeeGraceDays?: number;
+  lateFeeRate?: number;
+  applicationFee?: number;
 }
 
 export interface GuestLedgerEntry {
@@ -280,5 +302,117 @@ export interface EmergencyState {
   pipeLeak: boolean;
   powerOutage: boolean;
   activeEmergencyFloor: number | null;
+}
+
+export type TenantStatus = 'applied' | 'screening' | 'approved' | 'rejected' | 'active' | 'notice-given' | 'moved-out';
+
+export interface Lease {
+  id: string;
+  tenantId: string;
+  apartmentId: string;
+  floorIndex: number;
+  startDay: number;
+  startHour: number;
+  termDays: number;
+  monthlyRent: number;
+  securityDeposit: number;
+  petDeposit: number;
+  isPetFriendly: boolean;
+  isFurnished: boolean;
+  includesUtilities: boolean;
+  status: 'active' | 'expired' | 'terminated' | 'pending';
+  lateFeeRate: number;
+  lateFeeGraceDays: number;
+  nextPaymentDay: number;
+  lastPaymentDay: number;
+  paymentsMissed: number;
+}
+
+export interface MaintenanceRequest {
+  id: string;
+  tenantId: string;
+  apartmentId: string;
+  floorIndex: number;
+  category: 'plumbing' | 'electrical' | 'hvac' | 'appliance' | 'structural' | 'pest' | 'other';
+  priority: 'low' | 'medium' | 'high' | 'emergency';
+  description: string;
+  status: 'open' | 'assigned' | 'in-progress' | 'completed' | 'cancelled';
+  submittedDay: number;
+  submittedHour: number;
+  assignedStaffId?: string;
+  completedDay?: number;
+  cost?: number;
+  tenantSatisfactionImpact: number;
+}
+
+export interface ApartmentUnit {
+  id: string;
+  label: string;
+  floorIndex: number;
+  roomCategoryId: string;
+  x: number;
+  y: number;
+  beds: number;
+  bathrooms: number;
+  hasKitchen: boolean;
+  hasBalcony: boolean;
+  hasParking: boolean;
+  petFriendly: boolean;
+  furnished: boolean;
+  sqft: number;
+  marketRent: number;
+  status: 'vacant' | 'occupied' | 'maintenance' | 'reserved';
+  tenantId?: string;
+  leaseId?: string;
+}
+
+export interface TenantNPC {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  occupation: string;
+  income: number;
+  creditScore: number;
+  hasPets: boolean;
+  petType?: string;
+  moveInDay: number;
+  leaseEndDay: number;
+  apartmentId: string;
+  floorIndex: number;
+  status: TenantStatus;
+  satisfaction: number;
+  maintenanceRequestsCount: number;
+  paymentsOnTime: number;
+  paymentsLate: number;
+  x: number;
+  y: number;
+  targetX?: number;
+  targetY?: number;
+  color: string;
+}
+
+export interface ResidenceOperationsReport {
+  gameDay: number;
+  gameHour: number;
+  occupancyRate: number;
+  vacancyRate: number;
+  totalUnits: number;
+  occupiedUnits: number;
+  vacantUnits: number;
+  maintenanceUnits: number;
+  monthlyRentCollected: number;
+  lateFeesCollected: number;
+  securityDepositsHeld: number;
+  maintenanceCosts: number;
+  utilityBillsPaid: number;
+  netOperatingIncome: number;
+  averageRent: number;
+  tenantSatisfaction: number;
+  activeTenants: number;
+  applicantsThisMonth: number;
+  maintenanceRequestsOpen: number;
+  maintenanceRequestsCompleted: number;
+  evictionsThisMonth: number;
 }
 

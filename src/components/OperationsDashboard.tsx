@@ -297,11 +297,19 @@ export const OperationsDashboard: React.FC = () => {
               <div className="grid grid-cols-2 gap-2 text-[10px]">
                 {[
                   ['Staff Payroll', report.expenses.staffPayroll],
+                  ['Electricity', report.expenses.electricity],
+                  ['Water', report.expenses.water],
                   ['Utilities', report.expenses.utilities],
                   ['Housekeeping', report.expenses.housekeeping],
                   ['Maintenance', report.expenses.maintenance],
                   ['Marketing', report.expenses.marketing],
-                  ['Tax & Insurance', report.expenses.propertyTax + report.expenses.insurance],
+                  ['Property Tax', report.expenses.propertyTax],
+                  ['Income Tax', report.expenses.incomeTax],
+                  ['Room Tax', report.expenses.roomTax],
+                  ['Waste Mgmt', report.expenses.wasteManagement],
+                  ['Security', report.expenses.security],
+                  ['Staff Training', report.expenses.staffTraining],
+                  ['Insurance', report.expenses.insurance],
                 ].map(([label, val]) => (
                   <div key={label as string} className="flex justify-between bg-slate-950 px-2 py-1.5 rounded border border-slate-800">
                     <span className="text-slate-500">{label}</span>
