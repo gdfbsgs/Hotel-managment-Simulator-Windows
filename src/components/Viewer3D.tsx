@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Sky, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { useHotelStore } from '../store';
-import { TileType, GuestNPC, ViewportSync } from '../types';
+import { TileType, GuestNPC, ViewportSync, ElevatorDesign } from '../types';
 import {
   checkPlayerCollision,
   findInteractable,
@@ -736,8 +736,8 @@ const MergedFloor = ({ x, y, w, h }: { x: number, y: number, w: number, h: numbe
   const texture = cloneTexture(getTerrazzoTexture(), w, h);
 
   return (
-    <mesh position={[centerX, FLOOR_HEIGHT / 2, centerZ]}>
-      <boxGeometry args={[w * TILE_SIZE, FLOOR_HEIGHT, h * TILE_SIZE]} />
+    <mesh position={[centerX, WALL_HEIGHT / 2, centerZ]} castShadow receiveShadow>
+      <boxGeometry args={[w * TILE_SIZE, WALL_HEIGHT, h * TILE_SIZE]} />
       <meshStandardMaterial map={texture} roughness={0.4} />
     </mesh>
   );
@@ -1018,9 +1018,9 @@ const GuestAvatar = ({ guest }: { guest: GuestNPC }) => {
 };
 
 const MergedElevator = ({
-  x, y, w, h, floorLevel, doorsOpen, rotation = 0,
+  x, y, w, h, floorLevel, doorsOpen, rotation = 0, design = 'modern',
 }: {
-  x: number; y: number; w: number; h: number; floorLevel: number; doorsOpen: boolean; rotation?: number;
+  x: number; y: number; w: number; h: number; floorLevel: number; doorsOpen: boolean; rotation?: number; design?: ElevatorDesign;
 }) => {
   const rotRad = (rotation || 0) * Math.PI / 180;
   const centerX = x * TILE_SIZE + (w * TILE_SIZE) / 2;
@@ -1041,88 +1041,226 @@ const MergedElevator = ({
     if (rightDoorRef.current) rightDoorRef.current.position.x = doorGap;
   });
 
+  const landing = (
+    <mesh position={[0, FLOOR_HEIGHT / 2, 0]}>
+      <boxGeometry args={[w * TILE_SIZE, FLOOR_HEIGHT, h * TILE_SIZE]} />
+      <meshStandardMaterial map={getTerrazzoTexture()} roughness={0.35} />
+    </mesh>
+  );
+
+  const callPanel = (labelColor: string, labelText: string, bgColor: string) => (
+    <group position={[shaftW * 0.48 + 0.08, 1.25, shaftD * 0.42]}>
+      <mesh>
+        <boxGeometry args={[0.14, 0.55, 0.03]} />
+        <meshStandardMaterial color={bgColor} metalness={0.9} roughness={0.15} />
+      </mesh>
+      <mesh position={[0, 0.12, 0.02]}>
+        <circleGeometry args={[0.035, 16]} />
+        <meshStandardMaterial color="#38bdf8" emissive="#0ea5e9" emissiveIntensity={doorsOpen ? 1.2 : 0.3} />
+      </mesh>
+      <Text position={[0, -0.08, 0.02]} fontSize={0.09} color={labelColor} anchorX="center" anchorY="middle">
+        {String(floorLevel + 1)}
+      </Text>
+      <Text position={[0, -0.22, 0.02]} fontSize={0.045} color="#64748b" anchorX="center" anchorY="middle">
+        {labelText}
+      </Text>
+    </group>
+  );
+
+  const doors = (
+    <group position={[0, 1.15, shaftD * 0.46 + 0.02]}>
+      <mesh ref={leftDoorRef} position={[-doorOffset, 0, 0]}>
+        <boxGeometry args={[doorWidth, 2.2, 0.04]} />
+        <meshPhysicalMaterial color="#f1f5f9" transmission={0.75} transparent opacity={0.85} metalness={0.15} roughness={0.05} />
+      </mesh>
+      <mesh ref={rightDoorRef} position={[doorOffset, 0, 0]}>
+        <boxGeometry args={[doorWidth, 2.2, 0.04]} />
+        <meshPhysicalMaterial color="#f1f5f9" transmission={0.75} transparent opacity={0.85} metalness={0.15} roughness={0.05} />
+      </mesh>
+    </group>
+  );
+
+  if (design === 'modern') {
+    return (
+      <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
+        {landing}
+        <mesh position={[0, WALL_HEIGHT / 2, 0]}>
+          <boxGeometry args={[shaftW, WALL_HEIGHT, shaftD]} />
+          <meshPhysicalMaterial color="#e2e8f0" metalness={0.05} roughness={0.05} transmission={0.88} transparent opacity={0.35} thickness={0.15} />
+        </mesh>
+        {[[-shaftW / 2, -shaftD / 2], [shaftW / 2, -shaftD / 2], [-shaftW / 2, shaftD / 2], [shaftW / 2, shaftD / 2]].map(([px, pz], i) => (
+          <mesh key={i} position={[px, WALL_HEIGHT / 2, pz]}>
+            <boxGeometry args={[0.06, WALL_HEIGHT, 0.06]} />
+            <meshStandardMaterial color="#b8c0cc" metalness={0.96} roughness={0.12} />
+          </mesh>
+        ))}
+        <group position={[0, 0.05, 0]}>
+          <mesh position={[0, 1.35, 0]}>
+            <boxGeometry args={[shaftW * 0.78, 2.5, shaftD * 0.78]} />
+            <meshStandardMaterial color="#f8fafc" roughness={0.4} metalness={0.02} />
+          </mesh>
+          <mesh position={[0, 2.62, 0]}>
+            <boxGeometry args={[shaftW * 0.7, 0.04, shaftD * 0.7]} />
+            <meshStandardMaterial color="#ffffff" emissive="#e0f2fe" emissiveIntensity={0.8} />
+          </mesh>
+          <mesh position={[0, 1.35, -shaftD * 0.36]}>
+            <boxGeometry args={[shaftW * 0.72, 2.4, 0.02]} />
+            <meshStandardMaterial color="#cbd5e1" metalness={0.98} roughness={0.02} />
+          </mesh>
+        </group>
+        {doors}
+        {callPanel('#38bdf8', 'KONE', '#0f172a')}
+      </group>
+    );
+  }
+
+  if (design === 'classic') {
+    return (
+      <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
+        {landing}
+        <mesh position={[0, WALL_HEIGHT / 2, 0]}>
+          <boxGeometry args={[shaftW, WALL_HEIGHT, shaftD]} />
+          <meshStandardMaterial color="#78350f" roughness={0.75} metalness={0.05} />
+        </mesh>
+        {[[-shaftW / 2, -shaftD / 2], [shaftW / 2, -shaftD / 2], [-shaftW / 2, shaftD / 2], [shaftW / 2, shaftD / 2]].map(([px, pz], i) => (
+          <mesh key={i} position={[px, WALL_HEIGHT / 2, pz]}>
+            <boxGeometry args={[0.1, WALL_HEIGHT, 0.1]} />
+            <meshStandardMaterial color="#fbbf24" metalness={0.85} roughness={0.2} />
+          </mesh>
+        ))}
+        <mesh position={[0, 1.35, 0]}>
+          <boxGeometry args={[shaftW * 0.8, 2.6, shaftD * 0.8]} />
+          <meshStandardMaterial color="#fef3c7" roughness={0.6} metalness={0.02} />
+        </mesh>
+        <mesh position={[0, 2.6, 0]}>
+          <boxGeometry args={[shaftW * 0.75, 0.06, shaftD * 0.75]} />
+          <meshStandardMaterial color="#fbbf24" emissive="#f59e0b" emissiveIntensity={0.5} />
+        </mesh>
+        {doors}
+        {callPanel('#fbbf24', 'Classic', '#451a03')}
+      </group>
+    );
+  }
+
+  if (design === 'freight') {
+    return (
+      <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
+        {landing}
+        <mesh position={[0, WALL_HEIGHT / 2, 0]}>
+          <boxGeometry args={[shaftW, WALL_HEIGHT, shaftD]} />
+          <meshStandardMaterial color="#475569" roughness={0.9} metalness={0.3} />
+        </mesh>
+        {[[-shaftW / 2, -shaftD / 2], [shaftW / 2, -shaftD / 2], [-shaftW / 2, shaftD / 2], [shaftW / 2, shaftD / 2]].map(([px, pz], i) => (
+          <mesh key={i} position={[px, WALL_HEIGHT / 2, pz]}>
+            <boxGeometry args={[0.14, WALL_HEIGHT, 0.14]} />
+            <meshStandardMaterial color="#94a3b8" metalness={0.95} roughness={0.1} />
+          </mesh>
+        ))}
+        <mesh position={[0, 1.2, 0]}>
+          <boxGeometry args={[shaftW * 0.85, 2.8, shaftD * 0.85]} />
+          <meshStandardMaterial color="#e2e8f0" roughness={0.8} metalness={0.05} />
+        </mesh>
+        <group position={[0, 2.75, 0]}>
+          <mesh position={[-shaftW * 0.25, 0, 0]}>
+            <boxGeometry args={[0.06, 0.04, shaftD * 0.6]} />
+            <meshStandardMaterial color="#ef4444" emissive="#ef4444" emissiveIntensity={1.5} />
+          </mesh>
+          <mesh position={[shaftW * 0.25, 0, 0]}>
+            <boxGeometry args={[0.06, 0.04, shaftD * 0.6]} />
+            <meshStandardMaterial color="#22c55e" emissive="#22c55e" emissiveIntensity={1.5} />
+          </mesh>
+        </group>
+        {doors}
+        {callPanel('#ef4444', 'FREIGHT', '#1e293b')}
+      </group>
+    );
+  }
+
+  if (design === 'panoramic') {
+    return (
+      <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
+        {landing}
+        <mesh position={[0, WALL_HEIGHT / 2, 0]}>
+          <boxGeometry args={[shaftW, WALL_HEIGHT, shaftD]} />
+          <meshPhysicalMaterial color="#7dd3fc" metalness={0.0} roughness={0.0} transmission={0.95} transparent opacity={0.25} thickness={0.4} />
+        </mesh>
+        {[-1, 1].map((side, i) => (
+          <mesh key={i} position={[side * shaftW / 2, WALL_HEIGHT / 2, 0]} rotation={[0, side > 0 ? Math.PI / 2 : -Math.PI / 2, 0]}>
+            <boxGeometry args={[shaftD, WALL_HEIGHT, 0.04]} />
+            <meshPhysicalMaterial color="#e0f2fe" metalness={0.1} roughness={0.0} transmission={0.6} transparent opacity={0.4} />
+          </mesh>
+        ))}
+        <mesh position={[0, 1.35, 0]}>
+          <boxGeometry args={[shaftW * 0.82, 2.6, shaftD * 0.82]} />
+          <meshStandardMaterial color="#f0f9ff" roughness={0.2} metalness={0.0} />
+        </mesh>
+        <mesh position={[0, 2.6, shaftD * 0.38]}>
+          <boxGeometry args={[shaftW * 0.7, 0.04, 0.04]} />
+          <meshStandardMaterial color="#ffffff" emissive="#e0f2fe" emissiveIntensity={0.9} />
+        </mesh>
+        {doors}
+        {callPanel('#7dd3fc', 'PANORAMA', '#0c4a6e')}
+      </group>
+    );
+  }
+
+  if (design === 'service') {
+    return (
+      <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
+        {landing}
+        <mesh position={[0, WALL_HEIGHT / 2, 0]}>
+          <boxGeometry args={[shaftW, WALL_HEIGHT, shaftD]} />
+          <meshStandardMaterial color="#1e293b" roughness={0.85} metalness={0.4} />
+        </mesh>
+        <mesh position={[0, 1.1, 0]}>
+          <boxGeometry args={[shaftW * 0.84, 2.4, shaftD * 0.84]} />
+          <meshStandardMaterial color="#f1f5f9" roughness={0.9} metalness={0.02} />
+        </mesh>
+        {[-1, 1].map((side, i) => (
+          <mesh key={i} position={[side * shaftW * 0.3, 1.6, shaftD * 0.38]}>
+            <boxGeometry args={[0.04, 0.5, 0.04]} />
+            <meshStandardMaterial color="#f59e0b" emissive="#f59e0b" emissiveIntensity={doorsOpen ? 1.4 : 0.2} />
+          </mesh>
+        ))}
+        <mesh position={[0, 2.6, 0]}>
+          <boxGeometry args={[shaftW * 0.6, 0.08, shaftD * 0.08]} />
+          <meshStandardMaterial color="#475569" roughness={0.5} metalness={0.7} />
+        </mesh>
+        {doors}
+        {callPanel('#f59e0b', 'SERVICE', '#0f172a')}
+      </group>
+    );
+  }
+
   return (
     <group position={[centerX, 0, centerZ]} rotation={[0, rotRad, 0]}>
-      {/* Landing floor */}
-      <mesh position={[0, FLOOR_HEIGHT / 2, 0]}>
-        <boxGeometry args={[w * TILE_SIZE, FLOOR_HEIGHT, h * TILE_SIZE]} />
-        <meshStandardMaterial map={getTerrazzoTexture()} roughness={0.35} />
-      </mesh>
-
-      {/* KONE MonoSpace — glass shaft panels */}
+      {landing}
       <mesh position={[0, WALL_HEIGHT / 2, 0]}>
         <boxGeometry args={[shaftW, WALL_HEIGHT, shaftD]} />
-        <meshPhysicalMaterial
-          color="#e2e8f0"
-          metalness={0.05}
-          roughness={0.05}
-          transmission={0.88}
-          transparent
-          opacity={0.35}
-          thickness={0.15}
-        />
+        <meshPhysicalMaterial color="#e2e8f0" metalness={0.05} roughness={0.05} transmission={0.88} transparent opacity={0.35} thickness={0.15} />
       </mesh>
-
-      {/* Stainless steel corner posts */}
-      {[
-        [-shaftW / 2, -shaftD / 2],
-        [shaftW / 2, -shaftD / 2],
-        [-shaftW / 2, shaftD / 2],
-        [shaftW / 2, shaftD / 2],
-      ].map(([px, pz], i) => (
+      {[[-shaftW / 2, -shaftD / 2], [shaftW / 2, -shaftD / 2], [-shaftW / 2, shaftD / 2], [shaftW / 2, shaftD / 2]].map(([px, pz], i) => (
         <mesh key={i} position={[px, WALL_HEIGHT / 2, pz]}>
           <boxGeometry args={[0.06, WALL_HEIGHT, 0.06]} />
           <meshStandardMaterial color="#b8c0cc" metalness={0.96} roughness={0.12} />
         </mesh>
       ))}
-
-      {/* Cab interior — minimalist white KONE cabin */}
       <group position={[0, 0.05, 0]}>
         <mesh position={[0, 1.35, 0]}>
           <boxGeometry args={[shaftW * 0.78, 2.5, shaftD * 0.78]} />
           <meshStandardMaterial color="#f8fafc" roughness={0.4} metalness={0.02} />
         </mesh>
-        {/* LED ceiling panel */}
         <mesh position={[0, 2.62, 0]}>
           <boxGeometry args={[shaftW * 0.7, 0.04, shaftD * 0.7]} />
           <meshStandardMaterial color="#ffffff" emissive="#e0f2fe" emissiveIntensity={0.8} />
         </mesh>
-        {/* Mirror back wall */}
         <mesh position={[0, 1.35, -shaftD * 0.36]}>
           <boxGeometry args={[shaftW * 0.72, 2.4, 0.02]} />
           <meshStandardMaterial color="#cbd5e1" metalness={0.98} roughness={0.02} />
         </mesh>
       </group>
-
-      {/* KONE sliding glass doors */}
-      <group position={[0, 1.15, shaftD * 0.46 + 0.02]}>
-        <mesh ref={leftDoorRef} position={[-doorOffset, 0, 0]}>
-          <boxGeometry args={[doorWidth, 2.2, 0.04]} />
-          <meshPhysicalMaterial color="#f1f5f9" transmission={0.75} transparent opacity={0.85} metalness={0.15} roughness={0.05} />
-        </mesh>
-        <mesh ref={rightDoorRef} position={[doorOffset, 0, 0]}>
-          <boxGeometry args={[doorWidth, 2.2, 0.04]} />
-          <meshPhysicalMaterial color="#f1f5f9" transmission={0.75} transparent opacity={0.85} metalness={0.15} roughness={0.05} />
-        </mesh>
-      </group>
-
-      {/* KONE COP — slim black glass call panel */}
-      <group position={[shaftW * 0.48 + 0.08, 1.25, shaftD * 0.42]}>
-        <mesh>
-          <boxGeometry args={[0.14, 0.55, 0.03]} />
-          <meshStandardMaterial color="#0f172a" metalness={0.9} roughness={0.15} />
-        </mesh>
-        <mesh position={[0, 0.12, 0.02]}>
-          <circleGeometry args={[0.035, 16]} />
-          <meshStandardMaterial color="#38bdf8" emissive="#0ea5e9" emissiveIntensity={doorsOpen ? 1.2 : 0.3} />
-        </mesh>
-        <Text position={[0, -0.08, 0.02]} fontSize={0.09} color="#38bdf8" anchorX="center" anchorY="middle">
-          {String(floorLevel + 1)}
-        </Text>
-        <Text position={[0, -0.22, 0.02]} fontSize={0.045} color="#64748b" anchorX="center" anchorY="middle">
-          KONE
-        </Text>
-      </group>
+      {doors}
+      {callPanel('#38bdf8', 'KONE', '#0f172a')}
     </group>
   );
 };
@@ -1678,6 +1816,7 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
                     {...b}
                     floorLevel={floor.level}
                     doorsOpen={elevatorDoorsOpen.has(key) || showElevatorPanel}
+                    design={floor.elevatorDesign}
                   />
                 );
               })}

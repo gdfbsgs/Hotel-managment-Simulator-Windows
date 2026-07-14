@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Floor, TileType, ViewMode, Label, AppMode, StaffNPC, GuestNPC, HotelData, StaffTask, RoomRates, GuestState, FloorTemplate, Milestone, Brand, HotelChain, RoomCategory, BonusProgram, OperationsReport, ViewportSync, SupplyChain, EmergencyState, GuestSpendingPattern, StaffShift, GuestLedgerEntry, TenantNPC, Lease, MaintenanceRequest, ApartmentUnit, ResidenceOperationsReport, TenantStatus } from './types';
+import { Floor, TileType, ViewMode, Label, AppMode, StaffNPC, GuestNPC, HotelData, StaffTask, RoomRates, GuestState, FloorTemplate, Milestone, Brand, HotelChain, RoomCategory, BonusProgram, OperationsReport, ViewportSync, SupplyChain, EmergencyState, GuestSpendingPattern, StaffShift, GuestLedgerEntry, TenantNPC, Lease, MaintenanceRequest, ApartmentUnit, ResidenceOperationsReport, TenantStatus, ElevatorDesign, RoomStatus, AmenitySettings } from './types';
 import { PRESETS } from './presets';
 import { DEFAULT_BRANDS, DEFAULT_ROOM_CATEGORIES, HOTEL_CHAINS } from './db';
 import { auth, db } from './firebase';
@@ -61,6 +61,8 @@ const syncActiveHotelHelper = (state: any) => {
         lateFeeGraceDays: state.lateFeeGraceDays,
         lateFeeRate: state.lateFeeRate,
         applicationFee: state.applicationFee,
+        roomStatusMap: state.roomStatusMap,
+        amenitySettings: state.amenitySettings,
       };
     }
     return h;
@@ -481,6 +483,7 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
   loadPreset: (presetId: string) => void;
   /** Rotate furniture at cell (90° steps). Rotation only applies to furniture-like tiles. */
   rotateFurnitureAt: (x: number, y: number) => void;
+  setElevatorDesign: (floorIndex: number, design: ElevatorDesign) => void;
   resetAll: () => void;
 
 
@@ -501,12 +504,20 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
   guestLedger: GuestLedgerEntry[];
   gameSpeed: number;
 
+  roomStatusMap: Record<string, RoomStatus>;
+  amenitySettings: Record<string, AmenitySettings>;
+
   createRoomCategory: (cat: RoomCategory) => void;
   updateRoomCategoryPrice: (id: string, price: number) => void;
   deleteRoomCategory: (id: string) => void;
   createBonusProgram: (program: BonusProgram) => void;
   activateBonusProgram: (id: string) => void;
   deleteBonusProgram: (id: string) => void;
+
+  setRoomStatus: (x: number, y: number, status: RoomStatus) => void;
+  setStaffShift: (staffId: string, shift: StaffShift) => void;
+  setStaffSchedule: (staffId: string, schedule: StaffShift[]) => void;
+  setAmenitySetting: (amenityId: string, setting: Partial<AmenitySettings>) => void;
 
   setInflationRate: (rate: number) => void;
   setPropertyAppreciationRate: (rate: number) => void;
@@ -671,6 +682,14 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   lateFeeGraceDays: 5,
   lateFeeRate: 0.05,
   applicationFee: 50,
+  roomStatusMap: {},
+  amenitySettings: {
+    pool: { open: true, price: 15 },
+    spa_tile: { open: true, price: 25 },
+    restaurant: { open: true, price: 20 },
+    arcade: { open: true, price: 10 },
+    buffet: { open: true, price: 18 },
+  },
 
   setChainName: (name) => set({ chainName: name }),
 
@@ -926,6 +945,8 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         lateFeeGraceDays: state.lateFeeGraceDays,
         lateFeeRate: state.lateFeeRate,
         applicationFee: state.applicationFee,
+        roomStatusMap: state.roomStatusMap,
+        amenitySettings: state.amenitySettings,
         saveVersion: 1,
         savedAt: new Date().toISOString(),
       };
@@ -976,6 +997,14 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
           lateFeeGraceDays: (data.lateFeeGraceDays as number) ?? 5,
           lateFeeRate: (data.lateFeeRate as number) ?? 0.05,
           applicationFee: (data.applicationFee as number) ?? 50,
+          roomStatusMap: (data.roomStatusMap as Record<string, RoomStatus>) || {},
+          amenitySettings: (data.amenitySettings as Record<string, AmenitySettings>) || {
+            pool: { open: true, price: 15 },
+            spa_tile: { open: true, price: 25 },
+            restaurant: { open: true, price: 20 },
+            arcade: { open: true, price: 10 },
+            buffet: { open: true, price: 18 },
+          },
         });
       }
       return loaded;
@@ -1037,6 +1066,34 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     return { staff: updatedStaff, hotels: synced };
   }),
 
+  setStaffShift: (staffId, shift) => set((state) => {
+    const updatedStaff = state.staff.map(s => s.id === staffId ? { ...s, shift } : s);
+    const synced = syncActiveHotelHelper({ ...state, staff: updatedStaff });
+    return { staff: updatedStaff, hotels: synced };
+  }),
+
+  setStaffSchedule: (staffId, schedule) => set((state) => {
+    const updatedStaff = state.staff.map(s => s.id === staffId ? { ...s, shiftSchedule: schedule } : s);
+    const synced = syncActiveHotelHelper({ ...state, staff: updatedStaff });
+    return { staff: updatedStaff, hotels: synced };
+  }),
+
+  setRoomStatus: (x, y, status) => set((state) => {
+    const key = `${state.activeFloorIndex}:${x}:${y}`;
+    const newMap = { ...(state.roomStatusMap || {}) };
+    if (status === 'clean') delete newMap[key]; else newMap[key] = status;
+    const synced = syncActiveHotelHelper({ ...state, roomStatusMap: newMap });
+    return { roomStatusMap: newMap, hotels: synced };
+  }),
+
+  setAmenitySetting: (amenityId, setting) => set((state) => {
+    const current = state.amenitySettings?.[amenityId] || { open: true, price: 0 };
+    const next = { ...current, ...setting };
+    const newSettings = { ...(state.amenitySettings || {}), [amenityId]: next };
+    const synced = syncActiveHotelHelper({ ...state, amenitySettings: newSettings });
+    return { amenitySettings: newSettings, hotels: synced };
+  }),
+
   addMoney: (amount) => set((state) => {
     const updatedMoney = state.money + amount;
     setTimeout(() => checkMilestones(useHotelStore.getState(), set), 0);
@@ -1090,6 +1147,8 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       totalGuestsServed: state.totalGuestsServed,
       previousReport: state.operationsReport,
       inflationRate,
+      amenitySettings: state.amenitySettings,
+      roomStatusMap: state.roomStatusMap,
     });
 
     const energyUsage = report.expenses.utilities;
@@ -1572,8 +1631,10 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
             for (let f = 0; f < state.floors.length; f++) {
               for (let y = 0; y < GRID_SIZE; y++) {
                 for (let x = 0; x < GRID_SIZE; x++) {
-                  const isBedTaken = newGuests.some(og => og.id !== g.id && (og.targetX === x && og.targetY === y || og.finalTargetX === x && og.finalTargetY === y));
-                  if (state.floors[f].grid[y][x] === 'bed' && !isBedTaken) {
+                   const isBedTaken = newGuests.some(og => og.id !== g.id && (og.targetX === x && og.targetY === y || og.finalTargetX === x && og.finalTargetY === y));
+                   const roomKey = `${f}:${x}:${y}`;
+                   const roomStatus = state.roomStatusMap?.[roomKey];
+                   if (state.floors[f].grid[y][x] === 'bed' && !isBedTaken && !roomStatus || roomStatus === 'clean') {
                     const bedX = x;
                     const bedY = y;
                     const bedFloor = f;
@@ -1951,7 +2012,6 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     if (!activeFloor) return state;
 
     const tile = activeFloor.grid[y]?.[x];
-    // Only rotate furniture-like tiles, not structural ones.
     const ROTATABLE: TileType[] = ['bed', 'table', 'reception', 'plant', 'bathroom', 'staff', 'elevator', 'stairs'];
     if (!tile || tile === 'empty' || !ROTATABLE.includes(tile as TileType)) return state;
 
@@ -1965,6 +2025,15 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     const newFloors = [...state.floors];
     newFloors[state.activeFloorIndex] = { ...activeFloor, rotations };
 
+    const synced = syncActiveHotelHelper({ ...state, floors: newFloors });
+    return { floors: newFloors, hotels: synced };
+  }),
+
+  setElevatorDesign: (floorIndex, design) => set((state) => {
+    const newFloors = [...state.floors];
+    const floor = newFloors[floorIndex];
+    if (!floor) return state;
+    newFloors[floorIndex] = { ...floor, elevatorDesign: design };
     const synced = syncActiveHotelHelper({ ...state, floors: newFloors });
     return { floors: newFloors, hotels: synced };
   }),

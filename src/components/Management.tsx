@@ -123,9 +123,15 @@ export const Management: React.FC = () => {
     lateFeeRate,
     rentPrices,
     utilityRates,
+    setStaffShift,
+    setStaffSchedule,
+    setRoomStatus,
+    roomStatusMap,
+    amenitySettings,
+    setAmenitySetting,
   } = useHotelStore();
 
-  const [activeTab, setActiveTab] = useState<'operations' | 'chain' | 'staff' | 'guests' | 'presets' | 'categories' | 'bonuses' | 'settings' | 'residences'>('operations');
+  const [activeTab, setActiveTab] = useState<'operations' | 'chain' | 'staff' | 'guests' | 'presets' | 'categories' | 'bonuses' | 'amenities' | 'settings' | 'residences'>('operations');
 
   // New Hotel Form State
   const [newHotelName, setNewHotelName] = useState('');
@@ -396,6 +402,17 @@ export const Management: React.FC = () => {
             <Gift size={14} />
             Loyalty Clubs
           </button>
+          <button 
+            onClick={() => setActiveTab('amenities')}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider whitespace-nowrap transition-all ${
+              activeTab === 'amenities' 
+                ? 'bg-amber-500 text-slate-950 font-black shadow-lg shadow-amber-500/10' 
+                : 'text-slate-400 hover:text-white hover:bg-slate-900/50'
+            }`}
+          >
+            <Flame size={14} />
+            Amenities
+          </button>
           {buildingType === 'residences' && (
             <button 
               onClick={() => setActiveTab('residences')}
@@ -435,6 +452,64 @@ export const Management: React.FC = () => {
 
         {/* Tab 0: Live Operations Center */}
         {activeTab === 'operations' && <OperationsDashboard />}
+
+        {/* Tab: Amenities Management */}
+        {activeTab === 'amenities' && (
+          <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+            <div className="p-5 border-b border-slate-800 bg-slate-950/40">
+              <h3 className="text-lg font-black text-white">Amenity Management</h3>
+              <p className="text-sm text-slate-400 mt-1">Toggle amenities on/off and set guest prices. Revenue scales with occupancy.</p>
+            </div>
+            <div className="p-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                { id: 'pool', label: 'Indoor Pool', icon: '🏊', color: 'text-sky-400', defaultPrice: 15 },
+                { id: 'spa_tile', label: 'Spa & Wellness', icon: '🧖', color: 'text-emerald-400', defaultPrice: 25 },
+                { id: 'restaurant', label: 'Restaurant', icon: '🍽️', color: 'text-amber-400', defaultPrice: 20 },
+                { id: 'arcade', label: 'Arcade', icon: '🎮', color: 'text-fuchsia-400', defaultPrice: 10 },
+                { id: 'buffet', label: 'Buffet', icon: '🍱', color: 'text-orange-400', defaultPrice: 18 },
+              ].map(amenity => {
+                const settings = amenitySettings?.[amenity.id] || { open: true, price: amenity.defaultPrice };
+                return (
+                  <div key={amenity.id} className={`p-4 rounded-lg border ${settings.open ? 'border-slate-700 bg-slate-950/40' : 'border-slate-800 bg-slate-950/20 opacity-60'}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl">{amenity.icon}</span>
+                        <div>
+                          <p className="font-bold text-slate-200 text-sm">{amenity.label}</p>
+                          <p className={`text-[10px] font-bold uppercase ${settings.open ? 'text-emerald-400' : 'text-slate-500'}`}>
+                            {settings.open ? '● Open' : '○ Closed'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setAmenitySetting(amenity.id, { open: !settings.open })}
+                        className={`w-10 h-5 rounded-full flex items-center px-0.5 transition-colors ${settings.open ? 'bg-emerald-500' : 'bg-slate-800'}`}
+                      >
+                        <div className={`w-3.5 h-3.5 rounded-full transition-transform ${settings.open ? 'translate-x-5 bg-white' : 'translate-x-0 bg-slate-400'}`}></div>
+                      </button>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-slate-400">$</span>
+                      <input
+                        type="number"
+                        value={settings.price}
+                        onChange={(e) => setAmenitySetting(amenity.id, { price: Math.max(0, parseInt(e.target.value) || 0) })}
+                        disabled={!settings.open}
+                        className="w-full px-2 py-1 text-xs border border-slate-800 rounded bg-slate-900 text-slate-100 focus:outline-none focus:border-amber-500 disabled:opacity-50"
+                      />
+                      <span className="text-[10px] text-slate-500">/guest</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="p-5 border-t border-slate-800 bg-slate-950/30">
+              <p className="text-[10px] text-slate-500">
+                💡 Amenity revenue = (guests in-house) × price × amenity count, adjusted for inflation. Closing an amenity stops its revenue but also reduces operating costs.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Tab 1: Chain HQ & Custom Brands */}
         {activeTab === 'chain' && (
@@ -749,6 +824,34 @@ export const Management: React.FC = () => {
                 </div>
               </div>
 
+              {staff.length > 0 && (
+              <div className="mt-6 p-4 bg-slate-950/40 border border-slate-800 rounded-lg">
+                <h4 className="font-bold text-slate-400 mb-3 uppercase text-[10px] tracking-wider flex items-center gap-2">
+                  <Clock size={14} /> Shift Scheduler
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                  {staff.map(s => (
+                    <div key={s.id} className="flex items-center gap-2 p-2 bg-slate-900/50 rounded border border-slate-800">
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-slate-200 text-xs truncate">{s.name}</p>
+                        <p className="text-[10px] text-slate-500 capitalize">{s.role}</p>
+                      </div>
+                      <select
+                        value={s.shift || 'morning'}
+                        onChange={(e) => setStaffShift(s.id, e.target.value as any)}
+                        className="px-1.5 py-1 text-[10px] border border-slate-800 rounded bg-slate-950 text-slate-100 focus:outline-none focus:border-amber-500"
+                      >
+                        <option value="morning">☀️ Morning</option>
+                        <option value="evening">🌆 Evening</option>
+                        <option value="night">🌙 Night</option>
+                      </select>
+                    </div>
+                  ))}
+                </div>
+                <p className="mt-2 text-[9px] text-slate-600">Assign daily shifts. Staff work best during their assigned shift window.</p>
+              </div>
+              )}
+
               {staff.length > 0 ? (
                 <div>
                   <h4 className="font-bold text-slate-400 mb-3 uppercase text-[10px] tracking-wider">Current Branch Staff List</h4>
@@ -779,14 +882,14 @@ export const Management: React.FC = () => {
                     ))}
                   </div>
                 </div>
-              ) : (
-                <p className="text-center py-6 text-slate-500 text-sm italic">No employees currently active at this branch. Hire some above!</p>
-              )}
-            </div>
-          </div>
-        )}
+               ) : (
+                 <p className="text-center py-6 text-slate-500 text-sm italic">No employees currently active at this branch. Hire some above!</p>
+               )}
+             </div>
+           </div>
+         )}
 
-        {/* Tab 3: VIP Hub & Standard Guests */}
+         {/* Tab 3: VIP Hub & Standard Guests */}
         {activeTab === 'guests' && (
           <div className="space-y-6">
             
@@ -934,6 +1037,48 @@ export const Management: React.FC = () => {
                 )}
               </div>
             </div>
+
+            {/* Recent Guest Reviews */}
+            {guestLedger.length > 0 && (
+              <div className="bg-slate-900 rounded-xl border border-slate-800 overflow-hidden">
+                <div className="p-5 border-b border-slate-800 bg-slate-950/40">
+                  <h3 className="text-lg font-black text-white flex items-center gap-2">
+                    <FileText size={18} className="text-amber-500" />
+                    Recent Guest Reviews
+                  </h3>
+                  <p className="text-sm text-slate-400 mt-1">Latest check-out feedback and satisfaction ratings.</p>
+                </div>
+                <div className="p-5 max-h-80 overflow-y-auto space-y-2">
+                  {guestLedger.slice(0, 20).map((entry) => {
+                    const stars = Math.round((entry.finalSatisfaction / 100) * 5);
+                    const starColor = entry.finalSatisfaction >= 80 ? 'text-amber-400' : entry.finalSatisfaction >= 50 ? 'text-orange-400' : 'text-rose-500';
+                    return (
+                      <div key={entry.id} className="p-3 bg-slate-950/30 rounded-lg border border-slate-800 flex items-start gap-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="font-bold text-slate-200 text-xs truncate">{entry.guestName}</p>
+                            {entry.isVip && <span className="text-[10px] bg-amber-500/20 text-amber-400 px-1.5 py-0.5 rounded font-black">VIP</span>}
+                            <span className="text-[9px] text-slate-500 ml-auto">Floor {entry.floorIndex + 1}</span>
+                          </div>
+                          <div className="flex items-center gap-1 mb-1">
+                            {[1, 2, 3, 4, 5].map((s) => (
+                              <span key={s} className={`text-xs ${s <= stars ? starColor : 'text-slate-700'}`}>★</span>
+                            ))}
+                            <span className="text-[10px] text-slate-500 ml-1">{Math.round(entry.finalSatisfaction)}%</span>
+                          </div>
+                          <p className="text-[10px] text-slate-500">
+                            {entry.checkInDay}D {String(entry.checkInHour).padStart(2, '0')}:00 → {entry.checkOutDay}D {String(entry.checkOutHour).padStart(2, '0')}:00
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs font-black text-emerald-400">+${entry.revenueGenerated.toLocaleString()}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
           </div>
         )}
@@ -1409,7 +1554,7 @@ export const Management: React.FC = () => {
                                 onClick={() => activateBonusProgram(prog.id)}
                                 className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-black text-[10px] px-3.5 py-2 rounded-lg uppercase tracking-wider transition-all shadow-lg shadow-amber-500/10 flex items-center gap-1.5"
                               >
-                                Activate (${prog.costToActivate.toLocaleString()})
+                                 Activate (${(prog.costToActivate ?? 0).toLocaleString()})
                               </button>
                             )}
                           </div>
@@ -1610,7 +1755,7 @@ export const Management: React.FC = () => {
                         </div>
                       </div>
                       <div className="text-right">
-                        <p className="text-xs font-black text-emerald-400">+${entry.revenueGenerated.toLocaleString()}</p>
+                         <p className="text-xs font-black text-emerald-400">+${((entry.revenueGenerated ?? 0) as number).toLocaleString()}</p>
                         <p className="text-[10px] text-slate-500">Sat: {entry.finalSatisfaction}% · D{entry.checkOutDay}</p>
                       </div>
                     </div>
@@ -1877,19 +2022,19 @@ export const Management: React.FC = () => {
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
                   <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
                     <p className="text-[10px] text-slate-500 font-bold uppercase">Rent Collected</p>
-                    <p className="text-sm font-black text-emerald-400">${residenceOperationsReport.monthlyRentCollected.toLocaleString()}</p>
+                    <p className="text-sm font-black text-emerald-400">${(residenceOperationsReport.monthlyRentCollected ?? 0).toLocaleString()}</p>
                   </div>
                   <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
                     <p className="text-[10px] text-slate-500 font-bold uppercase">Late Fees</p>
-                    <p className="text-sm font-black text-amber-400">${residenceOperationsReport.lateFeesCollected.toLocaleString()}</p>
+                    <p className="text-sm font-black text-amber-400">${(residenceOperationsReport.lateFeesCollected ?? 0).toLocaleString()}</p>
                   </div>
                   <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
                     <p className="text-[10px] text-slate-500 font-bold uppercase">Maint. Costs</p>
-                    <p className="text-sm font-black text-red-400">${residenceOperationsReport.maintenanceCosts.toLocaleString()}</p>
+                    <p className="text-sm font-black text-red-400">${(residenceOperationsReport.maintenanceCosts ?? 0).toLocaleString()}</p>
                   </div>
                   <div className="bg-slate-950 rounded-lg p-3 border border-slate-800">
                     <p className="text-[10px] text-slate-500 font-bold uppercase">Avg. Rent</p>
-                    <p className="text-sm font-black text-white">${residenceOperationsReport.averageRent}</p>
+                    <p className="text-sm font-black text-white">${(residenceOperationsReport.averageRent ?? 0).toLocaleString()}</p>
                   </div>
                 </div>
               </div>

@@ -28,7 +28,6 @@ export const Editor2D: React.FC = () => {
   const { floors, activeFloorIndex, selectedTool, setTile, addLabel, removeLabel, guests, setTileTexture, textureMap, rotateFurnitureAt } = useHotelStore();
 
   const handleRotateCell = (x: number, y: number) => {
-    // Rotate only furniture-like tiles.
     rotateFurnitureAt(x, y);
   };
   const [isDrawing, setIsDrawing] = useState(false);
@@ -265,6 +264,11 @@ export const Editor2D: React.FC = () => {
                       {textureMap && textureMap[`${activeFloorIndex}:${x}:${y}`] && (
                         <div className="absolute bottom-1 right-1 text-[9px] px-1 py-0.5 rounded bg-slate-900/60 text-slate-200 pointer-events-none">{textureMap[`${activeFloorIndex}:${x}:${y}`].replace('texture-','')}</div>
                       )}
+                      {activeFloor?.rotations?.[`${x}:${y}`] ? (
+                        <div className="absolute top-0.5 right-0.5 text-[8px] px-0.5 py-0 rounded bg-amber-500/80 text-slate-950 font-black pointer-events-none leading-none">
+                          {activeFloor.rotations[`${x}:${y}`]}°
+                        </div>
+                      ) : null}
                   </div>
                 ))
               ))}

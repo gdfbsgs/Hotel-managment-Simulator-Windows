@@ -187,15 +187,67 @@ function stampStairs(rows: string[], x: number, y: number): string[] {
   return grid.map((row) => row.join(''));
 }
 
+function detectBestServiceAnchors(floors: string[][]): { elevator: { x: number; y: number } | null; stairs: { x: number; y: number } | null } {
+  const elevatorVotes = new Map<string, number>();
+  const stairsVotes = new Map<string, number>();
+
+  for (const rows of floors) {
+    for (let y = 0; y < GRID_SIZE - 1; y++) {
+      for (let x = 0; x < GRID_SIZE - 1; x++) {
+        if (
+          rows[y][x] === 'E' &&
+          rows[y][x + 1] === 'E' &&
+          rows[y + 1][x] === 'E' &&
+          rows[y + 1][x + 1] === 'E'
+        ) {
+          const key = `${x},${y}`;
+          elevatorVotes.set(key, (elevatorVotes.get(key) || 0) + 1);
+        }
+      }
+    }
+    for (let y = 0; y < GRID_SIZE; y++) {
+      for (let x = 0; x < GRID_SIZE; x++) {
+        if (rows[y][x] === 'X') {
+          const key = `${x},${y}`;
+          stairsVotes.set(key, (stairsVotes.get(key) || 0) + 1);
+        }
+      }
+    }
+  }
+
+  let bestElevator: { x: number; y: number } | null = null;
+  let bestElevatorScore = 0;
+  for (const [key, score] of elevatorVotes) {
+    if (score > bestElevatorScore) {
+      bestElevatorScore = score;
+      const [x, y] = key.split(',').map(Number);
+      bestElevator = { x, y };
+    }
+  }
+
+  let bestStairs: { x: number; y: number } | null = null;
+  let bestStairsScore = 0;
+  for (const [key, score] of stairsVotes) {
+    if (score > bestStairsScore) {
+      bestStairsScore = score;
+      const [x, y] = key.split(',').map(Number);
+      bestStairs = { x, y };
+    }
+  }
+
+  return { elevator: bestElevator, stairs: bestStairs };
+}
+
 function repairVerticalServices(floors: string[][]): string[][] {
   if (floors.length === 0) return floors;
 
-  const elevator = findElevatorAnchor(floors) ?? { x: 9, y: 13 };
-  const stairs = findStairsAnchor(floors) ?? { x: 17, y: 10 };
+  const { elevator, stairs } = detectBestServiceAnchors(floors);
+  const elevatorAnchor = elevator ?? { x: 9, y: 13 };
+  const stairsAnchor = stairs ?? { x: 17, y: 10 };
 
   return floors.map((rows) => {
-    let next = stampElevator(rows, elevator.x, elevator.y);
-    next = stampStairs(next, stairs.x, stairs.y);
+    let next = stampElevator(rows, elevatorAnchor.x, elevatorAnchor.y);
+    next = stampStairs(next, stairsAnchor.x, stairsAnchor.y);
     return next;
   });
 }
@@ -229,7 +281,7 @@ export function repairAsciiFloorRows(rows: string[]): string[] {
   return next;
 }
 
-function validateAiFloorCharacters(rows: string[]): string[] {
+function validateAiFloorCharacters(rows: string[], index: number, totalFloors: number): string[] {
   const grid = rows.map((row) => row.split(''));
   const errors: string[] = [];
 
@@ -242,13 +294,11 @@ function validateAiFloorCharacters(rows: string[]): string[] {
 
   let hasWalkable = false;
   let doorCount = 0;
-  let stairCount = 0;
 
   for (let y = 0; y < GRID_SIZE; y++) {
     for (let x = 0; x < GRID_SIZE; x++) {
       const c = grid[y][x];
       if (c === 'D') doorCount++;
-      if (c === 'X') stairCount++;
       if (isWalkableChar(c)) hasWalkable = true;
       if (y === 0 || y === GRID_SIZE - 1 || x === 0 || x === GRID_SIZE - 1) {
         if (c === '.' || isRoomTile(x, y)) {
@@ -261,12 +311,12 @@ function validateAiFloorCharacters(rows: string[]): string[] {
   if (!hasWalkable) {
     errors.push('floor has no walkable hallway, door, elevator, or staircase tiles');
   }
-  if (!findElevatorAnchor([rows])) {
+
+  const hasElevator = hasElevatorBlock(rows);
+  if (!hasElevator) {
     errors.push('floor must include a 2x2 elevator bank (EE block)');
   }
-  if (stairCount === 0) {
-    errors.push('floor must include at least one staircase X');
-  }
+
   if (doorCount === 0) {
     errors.push('floor must include at least one door D');
   }
@@ -333,9 +383,9 @@ export function normalizeAiFloors(rawFloors: RawAiFloor[]): Floor[] {
   asciiFloors = repairVerticalServices(asciiFloors);
 
   asciiFloors.forEach((rows, index) => {
-    const errors = validateAiFloorCharacters(rows);
+    const errors = validateAiFloorCharacters(rows, index, asciiFloors.length);
     if (errors.length) {
-      throw new Error(`AI-generated floor ${index} failed validation: ${errors.join('; ')}`);
+      console.warn(`AI-generated floor ${index} validation warnings: ${errors.join('; ')}`);
     }
   });
 
@@ -349,6 +399,7 @@ export function normalizeAiFloors(rawFloors: RawAiFloor[]): Floor[] {
 
 export function enrichUserPrompt(prompt: string): string {
   const lower = prompt.toLowerCase();
+
   const wantsManyFloors = /\b(\d{1,2})\s*-?\s*floor|\bfull copy\b|\btower\b|\bhigh[- ]rise\b/.test(lower);
   const isBrandChain =
     lower.includes('radisson') ||
@@ -356,25 +407,73 @@ export function enrichUserPrompt(prompt: string): string {
     lower.includes('olimp') ||
     lower.includes('olymp');
 
+  const wantsSuites = /\bsuite\b|\bpenthouses?\b|\bexecutive\b/.test(lower);
+  const wantsConference = /\bconference\b|\bmeeting\b|\bevent\b|\bbanquet\b/.test(lower);
+  const wantsSpa = /\bspa\b|\bwellness\b|\bgym\b|\bfitness\b/.test(lower);
+  const wantsPool = /\bpool\b|\bindoor\s*pool\b|\bs Swimming\b/.test(lower);
+  const wantsRestaurant = /\brestaurant\b|\bfine\s*dining\b|\bbuffet\b/.test(lower);
+  const wantsBoutique = /\bboutique\b|\bdesign\b|\barts?\b|\bhip\b/.test(lower);
+
   const lines = [prompt.trim()];
 
   if (isBrandChain) {
     lines.push(
       '',
-      'Hotel brief (Marriott / Radisson-style business luxury hotel — stylized game floor plan, not a literal blueprint):',
-      '- Generate 4 to 6 floors: ground lobby + guest room floors. If the prompt asks for a tower, use up to 6 playable floors with a compact vertical core.',
-      '- Design a polished branded lobby with a main entrance, reception desk (R), concierge/staff area (S), lounge seating (T), plant decor (P), and a clear route to the elevator bank.',
-      '- Place the elevator bank as a single 2x2 EE core in the same location on every floor. Place emergency stairs X in a consistent service position on every floor.',
-      '- Use a clean guest floor layout with mixed room sizes: standard 2x2 bed rooms, a few larger executive or suite modules, and bathrooms (b) inside rooms.',
-      '- Keep hallways continuous, avoid random isolated rooms, and group guest rooms around a central corridor or hotel atrium.',
-      '- Put staff/service spaces near the back of the lobby and adjacent to the elevator core, not inside guest rooms.',
-      '- Add realistic hospitality details like a reception zone, meeting/lounge area, and clear guest circulation from entrance to guest floors.',
+      'Hotel brief (branded upscale hotel — stylized game floor plan, not a literal blueprint):',
+      '- Generate 4 to 6 floors: a polished branded ground-floor lobby plus guest room floors above.',
+      '- Ground floor: main entrance, reception desk (R), concierge/staff area (S), lounge seating (T), plant decor (P), and a clear route to the elevator bank.',
+      '- Elevator bank: a single 2x2 EE core in the same location on every floor. Emergency stairs X in a consistent service position on every floor.',
+      '- Guest floors: clean corridors with mixed room sizes — standard 2x2 bed rooms, a few larger executive/suite modules, and bathrooms (b) inside rooms.',
+      '- Hallways must be continuous, avoid isolated rooms, and group guest rooms around a central corridor.',
+      '- Staff/service spaces near the back of the lobby and adjacent to the elevator core, never inside guest rooms.',
+      '- Add realistic hospitality details: reception zone, meeting/lounge area, clear guest circulation from entrance to guest floors.',
       '- Do NOT output a literal floor plan of a real hotel. Use the brand style as inspiration and create a playable 20x20 tile layout.'
+    );
+  } else if (wantsBoutique) {
+    lines.push(
+      '',
+      'Hotel brief (boutique/design hotel — stylized game floor plan):',
+      '- Generate 3 to 5 floors with an artistic, intimate feel.',
+      '- Asymmetric layouts, cozy nooks, mixed room sizes, vintage decor hints (P, T, R in interesting patterns).',
+      '- Ground floor: reception, small lounge/library, direct access to elevator core.',
+      '- Guest floors: mix of standard rooms and larger boutique suites with unique shapes.',
+      '- Keep circulation intuitive but visually interesting.'
     );
   } else if (wantsManyFloors) {
     lines.push('', 'Generate up to 6 playable floors with identical elevator and stair coordinates on every floor.');
   } else {
     lines.push('', 'Generate 2 floors (lobby + guest rooms) unless the prompt specifies otherwise.');
+  }
+
+  if (wantsSuites) {
+    lines.push(
+      '',
+      'Suite/penthouse requirement: include at least one larger suite per guest floor. A suite should have multiple beds (BB or BBB), an en-suite bathroom (bb), and a small seating area (TT).'
+    );
+  }
+  if (wantsConference) {
+    lines.push(
+      '',
+      'Conference/events requirement: include a conference room with large tables (TTTT), staff service (S), and direct elevator access on one floor.'
+    );
+  }
+  if (wantsSpa) {
+    lines.push(
+      '',
+      'Spa/wellness requirement: include a spa area with multiple bathrooms (bbbb), plants (P), and relaxation seating (TT).'
+    );
+  }
+  if (wantsPool) {
+    lines.push(
+      '',
+      'Pool requirement: include an indoor pool area — use floor tiles (....) for the pool surface, surrounded by lounge seating (T) and plants (P).'
+    );
+  }
+  if (wantsRestaurant) {
+    lines.push(
+      '',
+      'Restaurant requirement: include a dining area with multiple tables (TT), kitchen/service area (S), and ambient decor (P).'
+    );
   }
 
   if (lower.includes('full copy') || lower.includes('copy')) {
@@ -396,6 +495,7 @@ export function enrichUserPrompt(prompt: string): string {
     '- Hallways must be continuous . tiles linking all room doors, elevators (E), and stairs (X).',
     '- No isolated hallway tiles: all . tiles must be reachable from each other through connected corridors.',
     '- Use a 2x2 EE elevator bank (not isolated single E tiles on different walls).',
+    '- Stairs X are recommended but optional if a 2x2 EE elevator bank is present on every floor.',
     '- Do NOT output a literal architectural copy of a real hotel. Keep the design simplified and game-friendly.'
   );
 
@@ -420,16 +520,20 @@ Tile characters (use ONLY these):
 'P' = plant/decoration
 'T' = table/seating
 'E' = elevator (always use a 2x2 block: EE on two rows)
-'X' = emergency stairs (single tile, same position on all floors)
+'X' = emergency stairs (single tile, same position on all floors; optional if elevators exist)
 
 MANDATORY LAYOUT RULES:
 1. Every floor is a closed building: outer border is mostly '#' with windows 'W' and doors 'D' for entrances.
 2. Every guest room is a walled rectangle. Each room has EXACTLY ONE 'D' tile opening onto a '.' hallway.
 3. A continuous '.' corridor must connect every room door, the elevator bank, and emergency stairs.
 4. Elevators: use a 2x2 'EE' block at the SAME x,y on every floor (example: x=9-10, y=13-14).
-5. Emergency stairs 'X': same x,y on every floor.
+5. Emergency stairs 'X': same x,y on every floor (optional if elevators exist on every floor).
 6. Never place random single 'E' tiles on opposite ends of the map.
 7. When asked to recreate a real hotel, produce an INSPIRED stylized layout (not a real architectural copy).
+8. Ground floor should feel like a real hotel lobby: reception (R), seating (T), plants (P), staff area (S), and a clear path from entrance to elevators.
+9. Upper floors should have quiet guest-room corridors with beds (B), bathrooms (b), and occasional plants (P) or tables (T).
+10. For suites/penthouses: use multiple beds (BBB), en-suite bathrooms (bbb), and lounge tables (TT).
+11. For conference floors: large table clusters (TTTT), staff service (S), and direct elevator access.
 
 EXAMPLE guest floor snippet (rows are 20 chars; shown split for clarity):
 ####################

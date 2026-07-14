@@ -129,7 +129,7 @@ export const OperationsDashboard: React.FC = () => {
         <KpiCard label="Occupancy" value={`${occupancy}%`} sub={`${report?.guestsInHouse ?? 0} / ${report?.guestCapacity ?? 0} guests`} accent="text-sky-400" icon={BedDouble} />
         <KpiCard label="ADR" value={`$${adr}`} sub={adrVsMarket >= 0 ? `+${adrVsMarket}% vs market ($${compAdr})` : `${adrVsMarket}% vs market ($${compAdr})`} accent="text-emerald-400" icon={DollarSign} />
         <KpiCard label="RevPAR" value={`$${revpar}`} sub={`${report?.roomsAvailable ?? 0} rooms in inventory`} accent="text-amber-400" icon={TrendingUp} />
-        <KpiCard label="GOP / Hour" value={`$${gop.toLocaleString()}`} sub={`${margin}% operating margin`} accent={gop >= 0 ? 'text-emerald-400' : 'text-red-400'} icon={BarChart3} />
+        <KpiCard label="GOP / Hour" value={`$${(gop ?? 0).toLocaleString()}`} sub={`${margin}% operating margin`} accent={gop >= 0 ? 'text-emerald-400' : 'text-red-400'} icon={BarChart3} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -207,33 +207,33 @@ export const OperationsDashboard: React.FC = () => {
             <DollarSign size={16} className="text-emerald-400" />
             <h4 className="font-black text-white text-sm">Revenue Mix (Hourly)</h4>
           </div>
-          {report ? (
-            <div className="space-y-2">
-              {[
-                { label: 'Room Revenue', value: report.roomRevenue, color: 'bg-emerald-500' },
-                { label: 'F&B / Amenities', value: report.fbRevenue, color: 'bg-amber-500' },
-                { label: 'VIP Ancillary', value: report.ancillaryRevenue, color: 'bg-violet-500' },
-              ].map((row) => (
-                <div key={row.label}>
-                  <div className="flex justify-between text-xs mb-1">
-                    <span className="text-slate-400">{row.label}</span>
-                    <span className="font-bold text-white">${row.value}</span>
-                  </div>
-                  <div className="h-1.5 bg-slate-950 rounded-full overflow-hidden">
-                    <div className={`h-full ${row.color} rounded-full`} style={{ width: `${report.revenue > 0 ? (row.value / report.revenue) * 100 : 0}%` }} />
-                  </div>
-                </div>
-              ))}
-              <div className="pt-3 mt-3 border-t border-slate-800 flex justify-between">
-                <span className="text-xs font-bold text-slate-400">Total Revenue</span>
-                <span className="text-sm font-black text-emerald-400">${report.revenue.toLocaleString()}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-xs font-bold text-slate-400">Operating Costs</span>
-                <span className="text-sm font-black text-red-400">-${report.expenses.total.toLocaleString()}</span>
-              </div>
-            </div>
-          ) : (
+               {report ? (
+                 <div className="space-y-2">
+                   {[
+                     { label: 'Room Revenue', value: report.roomRevenue, color: 'bg-emerald-500' },
+                     { label: 'F&B / Amenities', value: report.fbRevenue, color: 'bg-amber-500' },
+                     { label: 'VIP Ancillary', value: report.ancillaryRevenue, color: 'bg-violet-500' },
+                   ].map((row) => (
+                     <div key={row.label}>
+                       <div className="flex justify-between text-xs mb-1">
+                         <span className="text-slate-400">{row.label}</span>
+                         <span className="font-bold text-white">${(row.value ?? 0).toLocaleString()}</span>
+                       </div>
+                       <div className="h-1.5 bg-slate-950 rounded-full overflow-hidden">
+                         <div className={`h-full ${row.color} rounded-full`} style={{ width: `${report.revenue > 0 ? (row.value / report.revenue) * 100 : 0}%` }} />
+                       </div>
+                     </div>
+                   ))}
+                   <div className="pt-3 mt-3 border-t border-slate-800 flex justify-between">
+                     <span className="text-xs font-bold text-slate-400">Total Revenue</span>
+                     <span className="text-sm font-black text-emerald-400">${(report.revenue ?? 0).toLocaleString()}</span>
+                   </div>
+                   <div className="flex justify-between">
+                     <span className="text-xs font-bold text-slate-400">Operating Costs</span>
+                     <span className="text-sm font-black text-red-400">-${(report.expenses?.total ?? 0).toLocaleString()}</span>
+                   </div>
+                 </div>
+               ) : (
             <p className="text-xs text-slate-500">Operations data loads after the first hourly tick...</p>
           )}
         </div>
@@ -313,7 +313,7 @@ export const OperationsDashboard: React.FC = () => {
                 ].map(([label, val]) => (
                   <div key={label as string} className="flex justify-between bg-slate-950 px-2 py-1.5 rounded border border-slate-800">
                     <span className="text-slate-500">{label}</span>
-                    <span className="font-bold text-slate-300">${(val as number).toLocaleString()}</span>
+                    <span className="font-bold text-slate-300">${((val as number) ?? 0).toLocaleString()}</span>
                   </div>
                 ))}
               </div>

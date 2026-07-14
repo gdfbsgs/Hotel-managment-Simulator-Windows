@@ -20,10 +20,19 @@ import {
   Users,
   Save,
   Copy,
-  Flame
+  Flame,
+  RotateCcw
 } from 'lucide-react';
 
 import { Move } from 'lucide-react';
+
+const ELEVATOR_DESIGNS: { id: 'modern' | 'classic' | 'freight' | 'panoramic' | 'service'; label: string; icon: string; color: string }[] = [
+  { id: 'modern',    label: 'Modern Glass',  icon: '🪟', color: 'text-sky-400' },
+  { id: 'classic',   label: 'Classic Brass', icon: '🏛️', color: 'text-amber-400' },
+  { id: 'freight',   label: 'Freight',       icon: '🏭', color: 'text-slate-400' },
+  { id: 'panoramic', label: 'Panoramic',     icon: '🔭', color: 'text-cyan-300' },
+  { id: 'service',   label: 'Service',       icon: '🔧', color: 'text-orange-400' },
+];
 
 const tools: { type: TileType | 'eraser' | 'text' | 'select'; icon: React.FC<any>; label: string; color: string; description: string }[] = [
   { type: 'select', icon: Move, label: 'Select/Move', color: 'text-slate-300', description: 'Select and move blocks of tiles around the map.' },
@@ -55,11 +64,16 @@ export const Sidebar: React.FC = () => {
     floorTemplates,
     saveFloorTemplate,
     loadFloorTemplate,
-    deleteFloorTemplate
+    deleteFloorTemplate,
+    setElevatorDesign,
   } = useHotelStore();
 
   const [newTemplateName, setNewTemplateName] = React.useState('');
   const [isSaving, setIsSaving] = React.useState(false);
+
+  const activeFloor = floors[activeFloorIndex];
+  const currentDesign: 'modern' | 'classic' | 'freight' | 'panoramic' | 'service' = activeFloor?.elevatorDesign || 'modern';
+  const hasElevator = activeFloor?.grid.some(row => row.includes('elevator'));
 
   return (
     <aside className="w-64 border-r border-slate-800 bg-slate-900 flex flex-col shrink-0 h-full text-slate-100">
@@ -89,6 +103,35 @@ export const Sidebar: React.FC = () => {
             );
           })}
         </div>
+
+        {hasElevator && (
+        <div className="mt-5">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Elevator Design</h3>
+            <span className="text-[9px] text-slate-600">per floor</span>
+          </div>
+          <div className="grid grid-cols-3 gap-1.5">
+            {ELEVATOR_DESIGNS.map((d) => (
+              <Tooltip key={d.id} content={d.label} className="w-full">
+                <button
+                  onClick={() => setElevatorDesign(activeFloorIndex, d.id)}
+                  className={`w-full aspect-square rounded-lg flex flex-col items-center justify-center gap-0.5 transition-all border text-[10px] font-bold ${
+                    currentDesign === d.id
+                      ? `${d.color} border-current bg-slate-950/80 shadow-md`
+                      : 'border-slate-800 text-slate-500 hover:border-slate-700 hover:text-slate-300'
+                  }`}
+                >
+                  <span className="text-base leading-none">{d.icon}</span>
+                  <span className="text-[8px] leading-none truncate w-full text-center">{d.label}</span>
+                </button>
+              </Tooltip>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[9px] text-slate-600 leading-snug">
+            💡 Right-click any furniture tile to rotate it 90°.
+          </p>
+        </div>
+        )}
 
         <div className="mt-8">
           <div className="flex items-center justify-between mb-3">

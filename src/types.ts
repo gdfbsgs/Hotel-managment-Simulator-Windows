@@ -15,7 +15,11 @@ export interface Floor {
   labels?: Label[];
   /** Per-cell furniture rotation in degrees (0/90/180/270). Only used for tiles like bed/table/reception etc. */
   rotations?: Record<string, number>; // key = `${x}:${y}`
+  /** Selected elevator shaft design for this floor. Falls back to 'modern' when unset. */
+  elevatorDesign?: ElevatorDesign;
 }
+
+export type ElevatorDesign = 'modern' | 'classic' | 'freight' | 'panoramic' | 'service';
 
 export interface FloorTemplate {
   id: string;
@@ -43,6 +47,13 @@ export type AppMode = 'Design' | 'Management' | 'Analytics' | 'Chain';
 export type StaffShift = 'morning' | 'evening' | 'night';
 
 export type StaffTask = 'Idle' | 'Clean Room' | 'Maintain Elevator' | 'Check-in Guests' | 'Patrol' | 'Service VIP';
+
+export type RoomStatus = 'clean' | 'dirty' | 'renovating' | 'out-of-order';
+
+export interface AmenitySettings {
+  open: boolean;
+  price: number;
+}
 
 export interface StaffNPC {
   id: string;
@@ -180,6 +191,7 @@ export interface OperationsReport {
   roomRevenue: number;
   fbRevenue: number;
   ancillaryRevenue: number;
+  amenityRevenue: number;
   expenses: OperationsExpenses;
   gop: number;
   operatingMargin: number;
@@ -224,6 +236,8 @@ export interface HotelData {
   lateFeeGraceDays?: number;
   lateFeeRate?: number;
   applicationFee?: number;
+  roomStatusMap?: Record<string, RoomStatus>;
+  amenitySettings?: Record<string, AmenitySettings>;
 }
 
 export interface GuestLedgerEntry {

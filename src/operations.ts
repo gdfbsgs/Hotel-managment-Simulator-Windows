@@ -1,4 +1,4 @@
-import { Brand, Floor, GuestNPC, OperationsReport, StaffNPC, RoomCategory, TileType } from './types';
+import { Brand, Floor, GuestNPC, OperationsReport, StaffNPC, RoomCategory, TileType, AmenitySettings, RoomStatus } from './types';
 
 const GRID_SIZE = 20;
 const inBounds = (x: number, y: number) => x >= 0 && y >= 0 && x < GRID_SIZE && y < GRID_SIZE;
@@ -396,6 +396,7 @@ export function countRoomInventory(floors: Floor[]) {
   let pools = 0;
   let restaurants = 0;
   let arcades = 0;
+  let buffets = 0;
 
   floors.forEach((floor) => {
     floor.grid.forEach((row) => {
@@ -409,6 +410,7 @@ export function countRoomInventory(floors: Floor[]) {
         if (cell === 'pool') pools++;
         if (cell === 'restaurant') restaurants++;
         if (cell === 'arcade') arcades++;
+        if (cell === 'buffet') buffets++;
       });
     });
     bedUnits += countBedUnitsInGrid(floor.grid);
@@ -417,7 +419,7 @@ export function countRoomInventory(floors: Floor[]) {
   const rooms = bedUnits;
   const guestCapacity = bedUnits * 2;
 
-  return { beds: bedUnits, rooms, guestCapacity, bathrooms, elevators, reception, totalTiles, floors: floors.length, powerPlants, spas, pools, restaurants, arcades };
+  return { beds: bedUnits, rooms, guestCapacity, bathrooms, elevators, reception, totalTiles, floors: floors.length, powerPlants, spas, pools, restaurants, arcades, buffets };
 }
 
 export function calculateStarRating(
@@ -521,6 +523,7 @@ export function calculateOperatingCosts(params: {
   energyUsage?: number;
   revenue?: number;
   gameDay?: number;
+  roomStatusMap?: Record<string, RoomStatus>;
 }) {
   const market = getMarket(params.marketId);
   const inflationRate = params.inflationRate ?? 0;
@@ -548,7 +551,12 @@ export function calculateOperatingCosts(params: {
   const staffTraining = Math.round(params.staff.length * 15 * inflationMultiplier);
   const insurance = Math.round((params.inventory.rooms * 3 + 60) * inflationMultiplier);
 
-  const total = staffPayroll + electricity + water + utilities + housekeeping + maintenance + marketing + propertyTax + incomeTax + roomTax + wasteManagement + security + staffTraining + insurance;
+  const renovatingCount = params.roomStatusMap
+    ? Object.values(params.roomStatusMap).filter((s) => s === 'renovating').length
+    : 0;
+  const renovationCost = Math.round(renovatingCount * 150 * inflationMultiplier);
+
+  const total = staffPayroll + electricity + water + utilities + housekeeping + maintenance + marketing + propertyTax + incomeTax + roomTax + wasteManagement + security + staffTraining + insurance + renovationCost;
 
   return {
     staffPayroll,
@@ -565,6 +573,7 @@ export function calculateOperatingCosts(params: {
     security,
     staffTraining,
     insurance,
+    renovationCost,
     total,
   };
 }
@@ -622,6 +631,8 @@ export function buildOperationsReport(params: {
   totalGuestsServed: number;
   previousReport?: OperationsReport | null;
   inflationRate?: number;
+  amenitySettings?: Record<string, AmenitySettings>;
+  roomStatusMap?: Record<string, RoomStatus>;
 }): OperationsReport {
   const inventory = countRoomInventory(params.floors);
   const inRoom = params.guests.filter((g) => g.state === 'in-room');
@@ -666,7 +677,19 @@ export function buildOperationsReport(params: {
   const ancillaryRevenue = Math.round(
     params.guests.filter((g) => g.isVip && g.state === 'in-room').length * 25
   );
-  const revenue = roomRevenue + fbRevenue + ancillaryRevenue;
+
+  const amenitySettings = params.amenitySettings || {};
+  const amenityCounts = countRoomInventory(params.floors);
+  const guestCount = inRoom.length;
+  let amenityRevenue = 0;
+  if (amenityCounts.pools > 0 && amenitySettings.pool?.open) amenityRevenue += Math.round(amenityCounts.pools * (guestCount * 3 + 20));
+  if (amenityCounts.spas > 0 && amenitySettings.spa_tile?.open) amenityRevenue += Math.round(amenityCounts.spas * (guestCount * 4 + 25));
+  if (amenityCounts.restaurants > 0 && amenitySettings.restaurant?.open) amenityRevenue += Math.round(amenityCounts.restaurants * (guestCount * 5 + 30));
+  if (amenityCounts.arcades > 0 && amenitySettings.arcade?.open) amenityRevenue += Math.round(amenityCounts.arcades * (guestCount * 2 + 15));
+  if (amenityCounts.buffets > 0 && amenitySettings.buffet?.open) amenityRevenue += Math.round(amenityCounts.buffets * (guestCount * 3 + 18));
+  amenityRevenue = Math.round(amenityRevenue * (1 + (params.inflationRate ?? 0) * 0.5));
+
+  const revenue = roomRevenue + fbRevenue + ancillaryRevenue + amenityRevenue;
 
   const costs = calculateOperatingCosts({
     floors: params.floors,
@@ -679,6 +702,7 @@ export function buildOperationsReport(params: {
     energyUsage: (params.previousReport?.expenses?.utilities ?? 0) * 0.1,
     revenue,
     gameDay: params.gameDay,
+    roomStatusMap: params.roomStatusMap,
   });
 
   const roomsSold = inRoom.length;
@@ -711,6 +735,7 @@ export function buildOperationsReport(params: {
     roomRevenue,
     fbRevenue,
     ancillaryRevenue,
+    amenityRevenue,
     expenses: costs,
     gop,
     operatingMargin,
