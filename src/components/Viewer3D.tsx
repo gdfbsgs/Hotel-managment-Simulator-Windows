@@ -1774,7 +1774,7 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
         <group position={[-offsetX, 0, -offsetZ]}>
           {visibleFloorBlocks.map(({ floor, floorBlocks, wallBlocks, bedBlocks, tableBlocks, receptionBlocks, windowBlocks, doorBlocks, elevatorBlocks, bathroomBlocks, staffBlocks }) => (
             <group key={floor.level} position={[0, floor.level * WALL_HEIGHT, 0]}>
-              {floor.grid.map((row, y) => (
+              {floor.grid.flatMap((row, y) =>
                 row.map((cell, x) => {
                   if (mergedTypes.includes(cell)) return null;
                   if (mode === 'Walk' && cell === 'window') return null;
@@ -1786,7 +1786,7 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
                     />
                   );
                 })
-              ))}
+              )}
 
               {/* Render merged blocks */}
               {floorBlocks.map((b, i) => <MergedFloor key={`floor-${i}`} {...b} />)}
@@ -1857,7 +1857,7 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
                    >
                      <GuestAvatar guest={guest} />
                    </group>
-                  )))
+                    )))
                 : []}
             </group>
           ))}
