@@ -1857,8 +1857,8 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
                    >
                      <GuestAvatar guest={guest} />
                    </group>
-                 ))
-               : []}
+                  )))
+                : []}
             </group>
           ))}
         </group>
