@@ -1845,20 +1845,18 @@ export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
                ))}
 
               {/* Render guests for this floor */}
-{mode !== 'Walk' ? (
-                 guests.filter((g) => g.floorIndex === floor.level).map((guest) => (
-                   <group
-                     key={guest.id}
-                     position={[
-                       guest.x * TILE_SIZE + TILE_SIZE / 2,
-                       0,
-                       guest.y * TILE_SIZE + TILE_SIZE / 2,
-                     ]}
-                   >
-                     <GuestAvatar guest={guest} />
-                   </group>
-                    )))
-                : []}
+{mode !== 'Walk' && guests.filter((g) => g.floorIndex === floor.level).map((guest) => (
+                    <group
+                      key={guest.id}
+                      position={[
+                        guest.x * TILE_SIZE + TILE_SIZE / 2,
+                        0,
+                        guest.y * TILE_SIZE + TILE_SIZE / 2,
+                      ]}
+                    >
+                      <GuestAvatar guest={guest} />
+                    </group>
+                  ))}
             </group>
           ))}
         </group>

@@ -530,7 +530,10 @@ Built and managed with ArchHotel Suite!`;
       {/* Milestone Celebratory Modal */}
       <AnimatePresence>
         {activeMilestoneNotification && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <motion.div
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          >
             {/* Backdrop */}
             <motion.div
               initial={{ opacity: 0 }}
@@ -634,7 +637,7 @@ Built and managed with ArchHotel Suite!`;
                 </motion.div>
               );
             })()}
-          </div>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
