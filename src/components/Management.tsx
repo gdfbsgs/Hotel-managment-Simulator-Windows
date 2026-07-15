@@ -46,7 +46,10 @@ import {
   CheckCircle2,
   X,
   Eye,
-  Search
+  Search,
+  GraduationCap,
+  Utensils,
+  CloudSun
 } from 'lucide-react';
 import { Tooltip } from './Tooltip';
 
@@ -129,6 +132,19 @@ export const Management: React.FC = () => {
     roomStatusMap,
     amenitySettings,
     setAmenitySetting,
+    roomServiceOrders,
+    hotelMaintenanceRequests,
+    weather,
+    season,
+    placeRoomServiceOrder,
+    assignRoomServiceOrder,
+    completeRoomServiceOrder,
+    createMaintenanceRequest,
+    assignMaintenanceRequest,
+    resolveMaintenanceRequest,
+    updateWeather,
+    updateSeason,
+    trainStaff,
   } = useHotelStore();
 
   const [activeTab, setActiveTab] = useState<'operations' | 'chain' | 'staff' | 'guests' | 'presets' | 'categories' | 'bonuses' | 'amenities' | 'settings' | 'residences'>('operations');

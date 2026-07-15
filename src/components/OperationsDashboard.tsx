@@ -17,6 +17,13 @@ import {
   TrendingUp,
   Users,
   Waves,
+  CloudSun,
+  CloudRain,
+  Snowflake,
+  Thermometer,
+  Sun,
+  Cloud,
+  Umbrella
 } from 'lucide-react';
 
 function KpiCard({
@@ -61,8 +68,13 @@ export const OperationsDashboard: React.FC = () => {
     activeHotelBrandId,
     customBrands,
     chainName,
+    setChainName,
     hotels,
     activeHotelId,
+    weather,
+    season,
+    updateWeather,
+    updateSeason,
   } = useHotelStore();
 
   const allBrands = [...DEFAULT_BRANDS, ...(customBrands || [])];
@@ -118,6 +130,16 @@ export const OperationsDashboard: React.FC = () => {
                 <p className="text-[10px] text-slate-500 font-bold uppercase">Season</p>
                 <p className="text-sm font-black text-white">{season.name}</p>
                 <p className="text-[10px] text-slate-400">Demand ×{season.multiplier.toFixed(2)}</p>
+              </div>
+            </div>
+            <div className="bg-slate-950/80 border border-slate-800 rounded-xl px-4 py-3 flex items-center gap-3">
+              <span className="text-xl">
+                {weather?.type === 'sunny' ? '☀️' : weather?.type === 'cloudy' ? '☁️' : weather?.type === 'rainy' ? '🌧️' : weather?.type === 'snowy' ? '❄️' : '⛈️'}
+              </span>
+              <div>
+                <p className="text-[10px] text-slate-500 font-bold uppercase">Weather</p>
+                <p className="text-sm font-black text-white">{weather?.description || 'Clear'}</p>
+                <p className="text-[10px] text-slate-400">{weather?.temperature || 22}°C</p>
               </div>
             </div>
           </div>

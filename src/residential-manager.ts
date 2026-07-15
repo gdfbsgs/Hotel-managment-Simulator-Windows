@@ -211,6 +211,8 @@ export function calculateResidenceOperatingCosts(params: {
     security,
     staffTraining,
     insurance,
+    renovationCost: 0,
+    roomServiceCost: 0,
     total,
   };
 }

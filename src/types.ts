@@ -71,7 +71,7 @@ export interface RoomServiceOrder {
   createdAt: number;
 }
 
-export interface MaintenanceRequest {
+export interface HotelMaintenanceRequest {
   id: string;
   floorIndex: number;
   x: number;
@@ -279,6 +279,7 @@ export interface HotelData {
   leases?: Lease[];
   apartmentUnits?: ApartmentUnit[];
   maintenanceRequests?: MaintenanceRequest[];
+  hotelMaintenanceRequests?: HotelMaintenanceRequest[];
   residenceOperationsReport?: ResidenceOperationsReport | null;
   residenceHistory?: ResidenceOperationsReport[];
   totalResidentsServed?: number;
@@ -292,7 +293,6 @@ export interface HotelData {
   roomStatusMap?: Record<string, RoomStatus>;
   amenitySettings?: Record<string, AmenitySettings>;
   roomServiceOrders?: RoomServiceOrder[];
-  maintenanceRequests?: MaintenanceRequest[];
   weather?: WeatherState;
   season?: SeasonState;
 }

@@ -1,4 +1,4 @@
-import { Brand, Floor, GuestNPC, OperationsReport, StaffNPC, RoomCategory, TileType, AmenitySettings, RoomStatus } from './types';
+import { Brand, Floor, GuestNPC, OperationsReport, StaffNPC, RoomCategory, TileType, AmenitySettings, RoomStatus, RoomServiceOrder, HotelMaintenanceRequest, WeatherState, SeasonState } from './types';
 
 const GRID_SIZE = 20;
 const inBounds = (x: number, y: number) => x >= 0 && y >= 0 && x < GRID_SIZE && y < GRID_SIZE;
@@ -524,6 +524,8 @@ export function calculateOperatingCosts(params: {
   revenue?: number;
   gameDay?: number;
   roomStatusMap?: Record<string, RoomStatus>;
+  roomServiceOrders?: RoomServiceOrder[];
+  hotelMaintenanceRequests?: HotelMaintenanceRequest[];
 }) {
   const market = getMarket(params.marketId);
   const inflationRate = params.inflationRate ?? 0;
@@ -556,7 +558,14 @@ export function calculateOperatingCosts(params: {
     : 0;
   const renovationCost = Math.round(renovatingCount * 150 * inflationMultiplier);
 
-  const total = staffPayroll + electricity + water + utilities + housekeeping + maintenance + marketing + propertyTax + incomeTax + roomTax + wasteManagement + security + staffTraining + insurance + renovationCost;
+  const pendingMaintenance = (params.hotelMaintenanceRequests || []).filter(r => r.status === 'open' || r.status === 'in-progress');
+  const maintenanceBacklogCost = Math.round(pendingMaintenance.length * 80 * inflationMultiplier);
+
+  const roomServiceOrders = params.roomServiceOrders || [];
+  const preparingOrders = roomServiceOrders.filter(o => o.status === 'preparing' || o.status === 'delivering');
+  const roomServiceCost = Math.round(preparingOrders.reduce((sum, o) => sum + o.totalPrice * 0.6, 0) * inflationMultiplier);
+
+  const total = staffPayroll + electricity + water + utilities + housekeeping + maintenance + marketing + propertyTax + incomeTax + roomTax + wasteManagement + security + staffTraining + insurance + renovationCost + maintenanceBacklogCost + roomServiceCost;
 
   return {
     staffPayroll,
@@ -574,6 +583,8 @@ export function calculateOperatingCosts(params: {
     staffTraining,
     insurance,
     renovationCost,
+    maintenanceBacklogCost,
+    roomServiceCost,
     total,
   };
 }
@@ -633,6 +644,10 @@ export function buildOperationsReport(params: {
   inflationRate?: number;
   amenitySettings?: Record<string, AmenitySettings>;
   roomStatusMap?: Record<string, RoomStatus>;
+  roomServiceOrders?: RoomServiceOrder[];
+  hotelMaintenanceRequests?: HotelMaintenanceRequest[];
+  weather?: WeatherState;
+  season?: SeasonState;
 }): OperationsReport {
   const inventory = countRoomInventory(params.floors);
   const inRoom = params.guests.filter((g) => g.state === 'in-room');
@@ -689,7 +704,18 @@ export function buildOperationsReport(params: {
   if (amenityCounts.buffets > 0 && amenitySettings.buffet?.open) amenityRevenue += Math.round(amenityCounts.buffets * (guestCount * 3 + 18));
   amenityRevenue = Math.round(amenityRevenue * (1 + (params.inflationRate ?? 0) * 0.5));
 
-  const revenue = roomRevenue + fbRevenue + ancillaryRevenue + amenityRevenue;
+  const roomServiceOrders = params.roomServiceOrders || [];
+  const deliveredOrders = roomServiceOrders.filter(o => o.status === 'delivered');
+  const roomServiceRevenue = deliveredOrders.reduce((sum, o) => sum + o.totalPrice, 0);
+
+  const seasonModifier = params.season?.modifier ?? 1.0;
+  const weatherImpact = params.weather?.type === 'rainy' || params.weather?.type === 'snowy' ? 0.9 : params.weather?.type === 'sunny' ? 1.1 : 1.0;
+
+  const adjustedRoomRevenue = Math.round(roomRevenue * seasonModifier * weatherImpact);
+  const adjustedAmenityRevenue = Math.round(amenityRevenue * seasonModifier);
+  const adjustedRoomServiceRevenue = Math.round(roomServiceRevenue * seasonModifier);
+
+  const revenue = adjustedRoomRevenue + fbRevenue + ancillaryRevenue + adjustedAmenityRevenue + adjustedRoomServiceRevenue;
 
   const costs = calculateOperatingCosts({
     floors: params.floors,
@@ -703,6 +729,8 @@ export function buildOperationsReport(params: {
     revenue,
     gameDay: params.gameDay,
     roomStatusMap: params.roomStatusMap,
+    roomServiceOrders: params.roomServiceOrders,
+    hotelMaintenanceRequests: params.hotelMaintenanceRequests,
   });
 
   const roomsSold = inRoom.length;
@@ -732,10 +760,11 @@ export function buildOperationsReport(params: {
     arrivalsInProgress: checkingIn.length,
     departuresInProgress: checkingOut.length,
     revenue,
-    roomRevenue,
+    roomRevenue: adjustedRoomRevenue,
     fbRevenue,
     ancillaryRevenue,
-    amenityRevenue,
+    amenityRevenue: adjustedAmenityRevenue,
+    roomServiceRevenue: adjustedRoomServiceRevenue,
     expenses: costs,
     gop,
     operatingMargin,
@@ -744,5 +773,7 @@ export function buildOperationsReport(params: {
     compSetAdr: market.compSetAdr,
     arrivalsToday: (params.previousReport?.arrivalsToday || 0),
     departuresToday: (params.previousReport?.departuresToday || 0),
+    seasonModifier,
+    weatherImpact,
   };
 }

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Floor, TileType, ViewMode, Label, AppMode, StaffNPC, GuestNPC, HotelData, StaffTask, RoomRates, GuestState, FloorTemplate, Milestone, Brand, HotelChain, RoomCategory, BonusProgram, OperationsReport, ViewportSync, SupplyChain, EmergencyState, GuestSpendingPattern, StaffShift, GuestLedgerEntry, TenantNPC, Lease, MaintenanceRequest, ApartmentUnit, ResidenceOperationsReport, TenantStatus, ElevatorDesign, RoomStatus, AmenitySettings, RoomServiceOrder, WeatherState, SeasonState } from './types';
+import { Floor, TileType, ViewMode, Label, AppMode, StaffNPC, GuestNPC, HotelData, StaffTask, RoomRates, GuestState, FloorTemplate, Milestone, Brand, HotelChain, RoomCategory, BonusProgram, OperationsReport, ViewportSync, SupplyChain, EmergencyState, GuestSpendingPattern, StaffShift, GuestLedgerEntry, TenantNPC, Lease, MaintenanceRequest, ApartmentUnit, ResidenceOperationsReport, TenantStatus, ElevatorDesign, RoomStatus, AmenitySettings, RoomServiceOrder, WeatherState, SeasonState, HotelMaintenanceRequest } from './types';
 import { PRESETS } from './presets';
 import { DEFAULT_BRANDS, DEFAULT_ROOM_CATEGORIES, HOTEL_CHAINS } from './db';
 import { auth, db } from './firebase';
@@ -63,6 +63,10 @@ const syncActiveHotelHelper = (state: any) => {
         applicationFee: state.applicationFee,
         roomStatusMap: state.roomStatusMap,
         amenitySettings: state.amenitySettings,
+        roomServiceOrders: state.roomServiceOrders,
+        hotelMaintenanceRequests: state.hotelMaintenanceRequests,
+        weather: state.weather,
+        season: state.season,
       };
     }
     return h;
@@ -507,7 +511,7 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
   roomStatusMap: Record<string, RoomStatus>;
   amenitySettings: Record<string, AmenitySettings>;
   roomServiceOrders: RoomServiceOrder[];
-  maintenanceRequests: MaintenanceRequest[];
+  hotelMaintenanceRequests: HotelMaintenanceRequest[];
   weather: WeatherState;
   season: SeasonState;
 
@@ -525,7 +529,7 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
   placeRoomServiceOrder: (guestId: string, items: string[]) => void;
   assignRoomServiceOrder: (orderId: string, staffId: string) => void;
   completeRoomServiceOrder: (orderId: string) => void;
-  createMaintenanceRequest: (floorIndex: number, x: number, y: number, type: MaintenanceRequest['type'], description: string) => void;
+  createMaintenanceRequest: (floorIndex: number, x: number, y: number, type: HotelMaintenanceRequest['type'], description: string) => void;
   assignMaintenanceRequest: (requestId: string, staffId: string) => void;
   resolveMaintenanceRequest: (requestId: string) => void;
   updateWeather: (weather: Partial<WeatherState>) => void;
@@ -703,6 +707,10 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     arcade: { open: true, price: 10 },
     buffet: { open: true, price: 18 },
   },
+  roomServiceOrders: [],
+  hotelMaintenanceRequests: [],
+  weather: { type: 'sunny', temperature: 22, description: 'Clear skies' },
+  season: { type: 'summer', name: 'Summer', modifier: 1.0 },
 
   setChainName: (name) => set({ chainName: name }),
 
@@ -960,6 +968,10 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         applicationFee: state.applicationFee,
         roomStatusMap: state.roomStatusMap,
         amenitySettings: state.amenitySettings,
+        roomServiceOrders: state.roomServiceOrders,
+        hotelMaintenanceRequests: state.hotelMaintenanceRequests,
+        weather: state.weather,
+        season: state.season,
         saveVersion: 1,
         savedAt: new Date().toISOString(),
       };
@@ -1018,6 +1030,10 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
             arcade: { open: true, price: 10 },
             buffet: { open: true, price: 18 },
           },
+          roomServiceOrders: (data.roomServiceOrders as RoomServiceOrder[]) || [],
+          hotelMaintenanceRequests: (data.hotelMaintenanceRequests as HotelMaintenanceRequest[]) || [],
+          weather: (data.weather as WeatherState) || { type: 'sunny', temperature: 22, description: 'Clear skies' },
+          season: (data.season as SeasonState) || { type: 'summer', name: 'Summer', modifier: 1.0 },
         });
       }
       return loaded;
@@ -1107,6 +1123,109 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
     return { amenitySettings: newSettings, hotels: synced };
   }),
 
+  placeRoomServiceOrder: (guestId, items) => set((state) => {
+    const guest = state.guests.find(g => g.id === guestId);
+    if (!guest) return state;
+    const basePrice = items.length * 15;
+    const order: RoomServiceOrder = {
+      id: `rs-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      guestId,
+      guestName: guest.name,
+      floorIndex: guest.floorIndex,
+      items,
+      totalPrice: basePrice,
+      status: 'pending',
+      createdAt: Date.now(),
+    };
+    const updatedOrders = [...(state.roomServiceOrders || []), order];
+    const synced = syncActiveHotelHelper({ ...state, roomServiceOrders: updatedOrders });
+    return { roomServiceOrders: updatedOrders, hotels: synced };
+  }),
+
+  assignRoomServiceOrder: (orderId, staffId) => set((state) => {
+    const updatedOrders = (state.roomServiceOrders || []).map(o =>
+      o.id === orderId ? { ...o, status: 'delivering' as const, assignedStaffId: staffId } : o
+    );
+    const synced = syncActiveHotelHelper({ ...state, roomServiceOrders: updatedOrders });
+    return { roomServiceOrders: updatedOrders, hotels: synced };
+  }),
+
+  completeRoomServiceOrder: (orderId) => set((state) => {
+    const order = (state.roomServiceOrders || []).find(o => o.id === orderId);
+    const updatedOrders = (state.roomServiceOrders || []).map(o =>
+      o.id === orderId ? { ...o, status: 'delivered' as const } : o
+    );
+    const extraMoney = order ? order.totalPrice : 0;
+    const synced = syncActiveHotelHelper({ ...state, roomServiceOrders: updatedOrders, money: state.money + extraMoney });
+    return { roomServiceOrders: updatedOrders, money: state.money + extraMoney, hotels: synced };
+  }),
+
+  createMaintenanceRequest: (floorIndex, x, y, type, description) => set((state) => {
+    const request: HotelMaintenanceRequest = {
+      id: `mr-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+      floorIndex,
+      x,
+      y,
+      type,
+      description,
+      priority: 'medium',
+      status: 'open',
+      createdAt: Date.now(),
+    };
+    const updatedRequests = [...(state.hotelMaintenanceRequests || []), request];
+    const synced = syncActiveHotelHelper({ ...state, hotelMaintenanceRequests: updatedRequests });
+    return { hotelMaintenanceRequests: updatedRequests, hotels: synced };
+  }),
+
+  assignMaintenanceRequest: (requestId, staffId) => set((state) => {
+    const updatedRequests = (state.hotelMaintenanceRequests || []).map(r =>
+      r.id === requestId ? { ...r, status: 'in-progress' as const, assignedStaffId: staffId } : r
+    );
+    const synced = syncActiveHotelHelper({ ...state, hotelMaintenanceRequests: updatedRequests });
+    return { hotelMaintenanceRequests: updatedRequests, hotels: synced };
+  }),
+
+  resolveMaintenanceRequest: (requestId) => set((state) => {
+    const updatedRequests = (state.hotelMaintenanceRequests || []).map(r =>
+      r.id === requestId ? { ...r, status: 'resolved' as const, resolvedAt: Date.now() } : r
+    );
+    const synced = syncActiveHotelHelper({ ...state, hotelMaintenanceRequests: updatedRequests });
+    return { hotelMaintenanceRequests: updatedRequests, hotels: synced };
+  }),
+
+  updateWeather: (weather) => set((state) => {
+    const next = { ...state.weather, ...weather };
+    const synced = syncActiveHotelHelper({ ...state, weather: next });
+    return { weather: next, hotels: synced };
+  }),
+
+  updateSeason: (season) => set((state) => {
+    const next = { ...state.season, ...season };
+    const synced = syncActiveHotelHelper({ ...state, season: next });
+    return { season: next, hotels: synced };
+  }),
+
+  trainStaff: (staffId) => set((state) => {
+    const updatedStaff = state.staff.map(s => {
+      if (s.id !== staffId) return s;
+      const currentLevel = s.level || 1;
+      const currentTraining = s.training || 0;
+      const trainingCost = currentLevel * 500;
+      if (state.money < trainingCost) return s;
+      const newTraining = currentTraining + 25;
+      const newLevel = newTraining >= 100 ? currentLevel + 1 : currentLevel;
+      const resetTraining = newTraining >= 100 ? 0 : newTraining;
+      return {
+        ...s,
+        level: newLevel,
+        training: resetTraining,
+        salary: Math.round(s.salary * (newLevel > currentLevel ? 1.2 : 1)),
+      };
+    });
+    const synced = syncActiveHotelHelper({ ...state, staff: updatedStaff });
+    return { staff: updatedStaff, hotels: synced };
+  }),
+
   addMoney: (amount) => set((state) => {
     const updatedMoney = state.money + amount;
     setTimeout(() => checkMilestones(useHotelStore.getState(), set), 0);
@@ -1162,6 +1281,10 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
       inflationRate,
       amenitySettings: state.amenitySettings,
       roomStatusMap: state.roomStatusMap,
+      roomServiceOrders: state.roomServiceOrders,
+      hotelMaintenanceRequests: state.hotelMaintenanceRequests,
+      weather: state.weather,
+      season: state.season,
     });
 
     const energyUsage = report.expenses.utilities;
