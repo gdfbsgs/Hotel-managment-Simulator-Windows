@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Floor, TileType, ViewMode, Label, AppMode, StaffNPC, GuestNPC, HotelData, StaffTask, RoomRates, GuestState, FloorTemplate, Milestone, Brand, HotelChain, RoomCategory, BonusProgram, OperationsReport, ViewportSync, SupplyChain, EmergencyState, GuestSpendingPattern, StaffShift, GuestLedgerEntry, TenantNPC, Lease, MaintenanceRequest, ApartmentUnit, ResidenceOperationsReport, TenantStatus, ElevatorDesign, RoomStatus, AmenitySettings } from './types';
+import { Floor, TileType, ViewMode, Label, AppMode, StaffNPC, GuestNPC, HotelData, StaffTask, RoomRates, GuestState, FloorTemplate, Milestone, Brand, HotelChain, RoomCategory, BonusProgram, OperationsReport, ViewportSync, SupplyChain, EmergencyState, GuestSpendingPattern, StaffShift, GuestLedgerEntry, TenantNPC, Lease, MaintenanceRequest, ApartmentUnit, ResidenceOperationsReport, TenantStatus, ElevatorDesign, RoomStatus, AmenitySettings, RoomServiceOrder, WeatherState, SeasonState } from './types';
 import { PRESETS } from './presets';
 import { DEFAULT_BRANDS, DEFAULT_ROOM_CATEGORIES, HOTEL_CHAINS } from './db';
 import { auth, db } from './firebase';
@@ -506,6 +506,10 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
 
   roomStatusMap: Record<string, RoomStatus>;
   amenitySettings: Record<string, AmenitySettings>;
+  roomServiceOrders: RoomServiceOrder[];
+  maintenanceRequests: MaintenanceRequest[];
+  weather: WeatherState;
+  season: SeasonState;
 
   createRoomCategory: (cat: RoomCategory) => void;
   updateRoomCategoryPrice: (id: string, price: number) => void;
@@ -518,6 +522,15 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
   setStaffShift: (staffId: string, shift: StaffShift) => void;
   setStaffSchedule: (staffId: string, schedule: StaffShift[]) => void;
   setAmenitySetting: (amenityId: string, setting: Partial<AmenitySettings>) => void;
+  placeRoomServiceOrder: (guestId: string, items: string[]) => void;
+  assignRoomServiceOrder: (orderId: string, staffId: string) => void;
+  completeRoomServiceOrder: (orderId: string) => void;
+  createMaintenanceRequest: (floorIndex: number, x: number, y: number, type: MaintenanceRequest['type'], description: string) => void;
+  assignMaintenanceRequest: (requestId: string, staffId: string) => void;
+  resolveMaintenanceRequest: (requestId: string) => void;
+  updateWeather: (weather: Partial<WeatherState>) => void;
+  updateSeason: (season: Partial<SeasonState>) => void;
+  trainStaff: (staffId: string) => void;
 
   setInflationRate: (rate: number) => void;
   setPropertyAppreciationRate: (rate: number) => void;

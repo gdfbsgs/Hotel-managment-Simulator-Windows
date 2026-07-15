@@ -46,28 +46,76 @@ export type AppMode = 'Design' | 'Management' | 'Analytics' | 'Chain';
 
 export type StaffShift = 'morning' | 'evening' | 'night';
 
-export type StaffTask = 'Idle' | 'Clean Room' | 'Maintain Elevator' | 'Check-in Guests' | 'Patrol' | 'Service VIP';
+export type StaffTask = 'Idle' | 'Clean Room' | 'Maintain Elevator' | 'Check-in Guests' | 'Patrol' | 'Service VIP' | 'Room Service' | 'Maintenance';
 
 export type RoomStatus = 'clean' | 'dirty' | 'renovating' | 'out-of-order';
+
+export type WeatherType = 'sunny' | 'cloudy' | 'rainy' | 'snowy' | 'stormy';
+
+export type SeasonType = 'spring' | 'summer' | 'autumn' | 'winter';
 
 export interface AmenitySettings {
   open: boolean;
   price: number;
 }
 
+export interface RoomServiceOrder {
+  id: string;
+  guestId: string;
+  guestName: string;
+  floorIndex: number;
+  items: string[];
+  totalPrice: number;
+  status: 'pending' | 'preparing' | 'delivering' | 'delivered' | 'cancelled';
+  assignedStaffId?: string;
+  createdAt: number;
+}
+
+export interface MaintenanceRequest {
+  id: string;
+  floorIndex: number;
+  x: number;
+  y: number;
+  type: 'plumbing' | 'electrical' | 'furniture' | 'elevator' | 'hvac' | 'general';
+  description: string;
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  status: 'open' | 'in-progress' | 'resolved' | 'cancelled';
+  assignedStaffId?: string;
+  createdAt: number;
+  resolvedAt?: number;
+}
+
+export interface WeatherState {
+  type: WeatherType;
+  temperature: number;
+  description: string;
+}
+
+export interface SeasonState {
+  type: SeasonType;
+  name: string;
+  modifier: number;
+}
+
 export interface StaffNPC {
   id: string;
   name: string;
-  role: 'receptionist' | 'cleaner' | 'manager';
+  role: 'receptionist' | 'cleaner' | 'manager' | 'chef' | 'maintenance' | 'room_service';
   salary: number;
   currentTask?: StaffTask;
   shift?: StaffShift;
   shiftSchedule?: StaffShift[];
+  level?: number;
+  experience?: number;
+  training?: number;
+  morale?: number;
 }
 
 export type GuestSpendingPattern = 'budget' | 'standard' | 'luxury';
 
-export type GuestState = 'wandering' | 'checking-in' | 'going-to-elevator' | 'going-to-room' | 'in-room' | 'checking-out' | 'going-to-elevator-checkout' | 'leaving';
+export type GuestNeed = 'hungry' | 'tired' | 'room_service' | 'housekeeping' | 'maintenance' | 'none';
+
+export type GuestState = 'wandering' | 'checking-in' | 'going-to-elevator' | 'going-to-room' | 'in-room' | 'checking-out' | 'going-to-elevator-checkout' | 'leaving' | 'ordering-room-service' | 'waiting-room-service';
 
 export interface GuestNPC {
   id: string;
@@ -78,7 +126,7 @@ export interface GuestNPC {
   stayLimitDays?: number;
   spent: number;
   state: GuestState;
-  need?: 'hungry' | 'tired' | 'none';
+  need?: GuestNeed;
   spendingPattern?: GuestSpendingPattern;
   x: number;
   y: number;
@@ -168,6 +216,8 @@ export interface OperationsExpenses {
   security: number;
   staffTraining: number;
   insurance: number;
+  roomServiceCost: number;
+  renovationCost: number;
   total: number;
 }
 
@@ -192,6 +242,7 @@ export interface OperationsReport {
   fbRevenue: number;
   ancillaryRevenue: number;
   amenityRevenue: number;
+  roomServiceRevenue: number;
   expenses: OperationsExpenses;
   gop: number;
   operatingMargin: number;
@@ -201,6 +252,8 @@ export interface OperationsReport {
   arrivalsToday: number;
   departuresToday: number;
   inflationRate?: number;
+  seasonModifier?: number;
+  weatherImpact?: number;
 }
 
 export interface HotelData {
@@ -238,6 +291,10 @@ export interface HotelData {
   applicationFee?: number;
   roomStatusMap?: Record<string, RoomStatus>;
   amenitySettings?: Record<string, AmenitySettings>;
+  roomServiceOrders?: RoomServiceOrder[];
+  maintenanceRequests?: MaintenanceRequest[];
+  weather?: WeatherState;
+  season?: SeasonState;
 }
 
 export interface GuestLedgerEntry {

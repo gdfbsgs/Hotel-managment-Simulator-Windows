@@ -3,7 +3,7 @@ import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { OrbitControls, Sky, Text } from '@react-three/drei';
 import * as THREE from 'three';
 import { useHotelStore } from '../store';
-import { TileType, GuestNPC, ViewportSync, ElevatorDesign } from '../types';
+import { TileType, GuestNPC, ViewportSync, ElevatorDesign, Floor } from '../types';
 import {
   checkPlayerCollision,
   findInteractable,
@@ -359,11 +359,9 @@ const FpsControls: React.FC<FpsControlsProps> = ({
   setViewportSync,
 }) => {
   const { camera } = useThree();
-  const { activeFloorIndex, floors, viewportSync } = useHotelStore((s) => ({
-    activeFloorIndex: s.activeFloorIndex,
-    floors: s.floors,
-    viewportSync: s.viewportSync as ViewportSync,
-  }));
+  const activeFloorIndex = useHotelStore((s) => s.activeFloorIndex);
+  const floors = useHotelStore((s) => s.floors);
+  const viewportSync = useHotelStore((s) => s.viewportSync);
   const keys = useRef<{ [key: string]: boolean }>({});
   
   const yaw = useRef(0);
@@ -1377,26 +1375,27 @@ const TileModel = ({ type, position }: { type: TileType; position: [number, numb
 
 export const Viewer3D: React.FC<{ mode?: string }> = ({ mode = '3D' }) => {
   const setViewportSync = useHotelStore((s) => s.setViewportSync);
-  const { floors, guests, activeFloorIndex, setActiveFloor, viewportSync } = useHotelStore((s) => ({
-    floors: s.floors,
-    guests: s.guests,
-    activeFloorIndex: s.activeFloorIndex,
-    setActiveFloor: s.setActiveFloor,
-    viewportSync: s.viewportSync as ViewportSync,
-  }));
+  const floors = useHotelStore((s) => s.floors);
+  const guests = useHotelStore((s) => s.guests);
+  const activeFloorIndex = useHotelStore((s) => s.activeFloorIndex);
+  const setActiveFloor = useHotelStore((s) => s.setActiveFloor);
+  const viewportSync = useHotelStore((s) => s.viewportSync);
 
   const offsetX = WALK_OFFSET;
   const offsetZ = WALK_OFFSET;
 
+  const prevVisibleFloorsRef = useRef<Floor[]>([]);
   const visibleFloors = useMemo(() => {
-    // In Walk mode, keep rendering the active floor ONLY for performance, BUT
-    // the user reported seeing only 1 floor after switching. That’s expected.
-    // To make it visually clearer when moving between floors, we render floors
-    // that are near the current active floor (active-1..active+1).
     if (mode === 'Walk') {
       const from = Math.max(0, activeFloorIndex - 1);
       const to = Math.min(floors.length - 1, activeFloorIndex + 1);
-      return floors.slice(from, to + 1);
+      const sliced = floors.slice(from, to + 1);
+      const prev = prevVisibleFloorsRef.current;
+      if (prev.length === sliced.length && prev.every((f, i) => f === sliced[i])) {
+        return prev;
+      }
+      prevVisibleFloorsRef.current = sliced;
+      return sliced;
     }
     return floors;
   }, [mode, floors, activeFloorIndex]);
