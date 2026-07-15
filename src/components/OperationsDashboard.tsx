@@ -72,7 +72,6 @@ export const OperationsDashboard: React.FC = () => {
     hotels,
     activeHotelId,
     weather,
-    season,
     updateWeather,
     updateSeason,
   } = useHotelStore();

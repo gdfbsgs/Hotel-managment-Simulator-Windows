@@ -208,7 +208,7 @@ export const evaluateFloorRoomCategory = (floor: Floor, categories: RoomCategory
   let maxPrice = bestCategory ? bestCategory.price : 0;
 
   availableCategories.forEach(cat => {
-    const met = (cat.requiredTiles || []).every(reqTile => (tileCounts[reqTile] || 0) > 0);
+    const met = (cat.requiredTiles || []).every((reqTile: TileType) => (tileCounts[reqTile] || 0) > 0);
     if (met && cat.price > maxPrice) {
       bestCategory = cat;
       maxPrice = cat.price;
@@ -519,7 +519,7 @@ function applyLoadedHotelData(data: Record<string, unknown>, set: (partial: Reco
   updateRoomCategoryPrice: (id: string, price: number) => void;
   deleteRoomCategory: (id: string) => void;
   createBonusProgram: (program: BonusProgram) => void;
-  activateBonusProgram: (id: string) => void;
+  activateBonusProgram: (id: string | null | undefined) => void;
   deleteBonusProgram: (id: string) => void;
 
   setRoomStatus: (x: number, y: number, status: RoomStatus) => void;
@@ -1071,7 +1071,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
   }),
 
   hireStaff: (role) => set((state) => {
-    const costs = { receptionist: 1000, cleaner: 500, manager: 2000 };
+    const costs = { receptionist: 1000, cleaner: 500, manager: 2000, chef: 1500, maintenance: 1200, room_service: 800 };
     const cost = costs[role];
     if (state.money >= cost) {
       const newStaff: StaffNPC = {
@@ -1476,7 +1476,8 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         isVip,
         vipNeed,
         vipSatisfaction,
-        satisfaction: isVip ? 80 : 75
+        satisfaction: isVip ? 80 : 75,
+        stuckCounter: 0
       });
     }
 
@@ -1740,8 +1741,9 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
         const dist = Math.sqrt(dx*dx + dy*dy);
         
         if (dist > 0.5) {
-          const nx = g.x + (dx / dist) * 0.5;
-          const ny = g.y + (dy / dist) * 0.5;
+          const stepSize = 0.5;
+          const nx = g.x + (dx / dist) * stepSize;
+          const ny = g.y + (dy / dist) * stepSize;
           const floorGrid = state.floors[g.floorIndex]?.grid;
           const isBlocked = (px: number, py: number) => {
             if (!floorGrid) return false;
@@ -1751,13 +1753,93 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
             const t = floorGrid[iy]?.[ix];
             return t === 'wall' || t === 'reception';
           };
+          
+          let moved = false;
           if (!isBlocked(nx, ny)) {
             g.x = nx;
             g.y = ny;
+            moved = true;
           } else if (!isBlocked(nx, g.y)) {
             g.x = nx;
+            moved = true;
           } else if (!isBlocked(g.x, ny)) {
             g.y = ny;
+            moved = true;
+          } else {
+            // Wall sliding: try perpendicular directions
+            const perpX = -dy / dist;
+            const perpY = dx / dist;
+            const slideX = g.x + perpX * stepSize;
+            const slideY = g.y + perpY * stepSize;
+            const antiSlideX = g.x - perpX * stepSize;
+            const antiSlideY = g.y - perpY * stepSize;
+            
+            if (!isBlocked(slideX, slideY)) {
+              g.x = slideX;
+              g.y = slideY;
+              moved = true;
+            } else if (!isBlocked(antiSlideX, antiSlideY)) {
+              g.x = antiSlideX;
+              g.y = antiSlideY;
+              moved = true;
+            } else if (!isBlocked(slideX, g.y)) {
+              g.x = slideX;
+              moved = true;
+            } else if (!isBlocked(g.x, slideY)) {
+              g.y = slideY;
+              moved = true;
+            } else if (!isBlocked(antiSlideX, g.y)) {
+              g.x = antiSlideX;
+              moved = true;
+            } else if (!isBlocked(g.x, antiSlideY)) {
+              g.y = antiSlideY;
+              moved = true;
+            }
+          }
+          
+          if (moved) {
+            g.stuckCounter = 0;
+          } else {
+            g.stuckCounter = (g.stuckCounter || 0) + 1;
+            // Recovery: after being stuck for 30+ steps, try random nudge or reset
+            if (g.stuckCounter > 30) {
+              const nudges = [
+                { dx: 0.5, dy: 0 }, { dx: -0.5, dy: 0 },
+                { dx: 0, dy: 0.5 }, { dx: 0, dy: -0.5 },
+                { dx: 0.35, dy: 0.35 }, { dx: -0.35, dy: 0.35 },
+                { dx: 0.35, dy: -0.35 }, { dx: -0.35, dy: -0.35 }
+              ];
+              const nudge = nudges[Math.floor(Math.random() * nudges.length)];
+              const nnx = g.x + nudge.dx;
+              const nny = g.y + nudge.dy;
+              if (!isBlocked(nnx, nny)) {
+                g.x = nnx;
+                g.y = nny;
+                g.stuckCounter = 0;
+              } else if (g.stuckCounter > 60) {
+                // Hard reset: teleport to a nearby walkable tile
+                for (let r = 1; r <= 3; r++) {
+                  const candidates = [
+                    { x: g.x + r, y: g.y }, { x: g.x - r, y: g.y },
+                    { x: g.x, y: g.y + r }, { x: g.x, y: g.y - r }
+                  ];
+                  for (const c of candidates) {
+                    const ix = Math.round(c.x);
+                    const iy = Math.round(c.y);
+                    if (ix >= 0 && iy >= 0 && ix < GRID_SIZE && iy < GRID_SIZE) {
+                      const t = floorGrid?.[iy]?.[ix];
+                      if (t === 'floor' || t === 'door' || t === 'elevator' || t === 'stairs') {
+                        g.x = c.x;
+                        g.y = c.y;
+                        g.stuckCounter = 0;
+                        break;
+                      }
+                    }
+                  }
+                  if (g.stuckCounter === 0) break;
+                }
+              }
+            }
           }
         } else {
           // Reached target
@@ -2687,7 +2769,7 @@ export const useHotelStore = create<HotelStore>((set, get) => ({
 
   setActiveHotel: (hotelId) => set((state) => {
     const syncedHotels = syncActiveHotelHelper(state);
-    const target = syncedHotels.find(h => h.id === hotelId);
+    const target = syncedHotels.find((h: HotelData) => h.id === hotelId);
     if (!target) return state;
 
     return {

@@ -267,7 +267,7 @@ Built and managed with ArchHotel Suite!`;
                   <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `$${val}`} />
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', border: '1px solid #1e293b', backgroundColor: '#0f172a', color: '#f8fafc' }}
-                    formatter={(value: number) => [`$${value.toFixed(0)}`, 'Revenue']}
+                    formatter={(value: unknown) => [`$${((value as number) ?? 0).toFixed(0)}`, 'Revenue']}
                   />
                   <Line type="monotone" dataKey="revenue" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981', strokeWidth: 0 }} activeDot={{ r: 6 }} />
                 </LineChart>
@@ -285,7 +285,7 @@ Built and managed with ArchHotel Suite!`;
                   <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(val) => `${val}%`} />
                   <Tooltip 
                     contentStyle={{ borderRadius: '8px', border: '1px solid #1e293b', backgroundColor: '#0f172a', color: '#f8fafc' }}
-                    formatter={(value: number) => [`${value.toFixed(1)}%`, 'Occupancy']}
+                    formatter={(value: unknown) => [`${((value as number) ?? 0).toFixed(1)}%`, 'Occupancy']}
                     cursor={{ fill: '#1e293b' }}
                   />
                   <Bar dataKey="rate" fill="#3b82f6" radius={[4, 4, 0, 0]} />

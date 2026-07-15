@@ -151,6 +151,7 @@ export interface GuestNPC {
   enrolledInBonusProgram?: boolean;
   checkedOutAt?: string;
   revenueGenerated?: number;
+  stuckCounter?: number;
 }
 
 export interface RoomRates {

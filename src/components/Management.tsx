@@ -928,7 +928,9 @@ export const Management: React.FC = () => {
                         champagne: "🍾 Premium Champagne Room Service",
                         valet: "🤵 Personalized Front Desk Valet",
                         suite: "🌸 Suite Bedroom Comfort Decor",
-                        spa: "🛁 Relaxing Spa & Bathroom Access"
+                        spa: "🛁 Relaxing Spa & Bathroom Access",
+                        none: "General luxury service",
+                        'late checkout': "⏰ Late Checkout Privilege"
                       };
                       const needLabel = g.vipNeed ? mappedNeeds[g.vipNeed] : "General luxury service";
                       const assignedStaffName = staff.find(s => s.id === g.vipAssignedStaff)?.name;
